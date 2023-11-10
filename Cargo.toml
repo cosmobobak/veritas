@@ -1,0 +1,15 @@
+[package]
+name = "veritas"
+version = "0.1.0"
+edition = "2021"
+description = "An MCTS-PUCT general game player."
+license = "MIT"
+readme = "README.md"
+keywords = ["treesearch"]
+categories = ["games"]
+repository = "https://github.com/cosmobobak/viridithas"
+authors = ["Cosmo Bobak (cosmobobak@gmail.com)"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
