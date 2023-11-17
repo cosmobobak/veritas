@@ -1,0 +1,113 @@
+use std::str::FromStr;
+
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Clock {
+    Fixed { millis: u64 },
+    Dynamic { our_base: u64, our_increment: u64, their_base: u64, their_increment: u64 },
+}
+
+impl Clock {
+    const fn time_limit(self) -> u64 {
+        match self {
+            Self::Fixed { millis } => millis,
+            Self::Dynamic { our_base, our_increment, .. } => our_base / 20 + 3 * our_increment / 4,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Limits {
+    nodes: Option<u64>,
+    time: Option<Clock>,
+}
+
+impl Limits {
+    const fn movetime(millis: u64) -> Self {
+        Self {
+            nodes: None,
+            time: Some(Clock::Fixed { millis }),
+        }
+    }
+
+    const fn nodes(nodes: u64) -> Self {
+        Self {
+            nodes: Some(nodes),
+            time: None,
+        }
+    }
+
+    const fn time(our_base: u64, our_increment: u64, their_base: u64, their_increment: u64) -> Self {
+        Self {
+            nodes: None,
+            time: Some(Clock::Dynamic { our_base, our_increment, their_base, their_increment }),
+        }
+    }
+
+    const fn infinite() -> Self {
+        Self {
+            nodes: None,
+            time: None,
+        }
+    }
+
+    const fn is_out_of_time(&self, nodes_searched: u64, elapsed: u64) -> bool {
+        if let Some(nodes) = self.nodes {
+            if nodes_searched >= nodes {
+                return true;
+            }
+        }
+        if let Some(clock) = self.time {
+            let time_limit = clock.time_limit();
+            if elapsed >= time_limit {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+impl FromStr for Limits {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // example valid input: 
+        // "nodes [nodes]" => Self::nodes(nodes)
+        // "movetime [ms]" => Self::movetime(ms)
+        // "p1time [ms] p2time [ms] p1inc [ms] p2inc [ms]" => Self::time(p1time, p1inc, p2time, p2inc)
+        // "infinite" => Self::infinite()
+        // "nodes [nodes] movetime [ms]" => Self { nodes: Some(nodes), time: Some(Self::movetime(ms)) }
+        // "nodes [nodes] p1time [ms] p2time [ms] p1inc [ms] p2inc [ms]" => Self { nodes: Some(nodes), time: Some(Self::time(p1time, p1inc, p2time, p2inc)) }
+
+        let mut words = s.split_ascii_whitespace();
+        let mut components = Vec::with_capacity(4);
+        while let Some(word) = words.next() {
+            match word {
+                "nodes" => {
+                    let nodes = words.next().ok_or(())?.parse().map_err(|_| ())?;
+                    components.push(Self::nodes(nodes));
+                }
+                "movetime" => {
+                    let millis = words.next().ok_or(())?.parse().map_err(|_| ())?;
+                    components.push(Self::movetime(millis));
+                }
+                "p1time" => {
+                    let p1time = words.next().ok_or(())?.parse().map_err(|_| ())?;
+                    let _ = words.next().ok_or(())?; // "p2time"
+                    let p2time = words.next().ok_or(())?.parse().map_err(|_| ())?;
+                    let _ = words.next().ok_or(())?; // "p1inc"
+                    let p1inc = words.next().ok_or(())?.parse().map_err(|_| ())?;
+                    let _ = words.next().ok_or(())?; // "p2inc"
+                    let p2inc = words.next().ok_or(())?.parse().map_err(|_| ())?;
+                    components.push(Self::time(p1time, p1inc, p2time, p2inc));
+                }
+                "infinite" => {
+                    components.push(Self::infinite());
+                }
+                _ => return Err(()),
+            }
+        }
+
+        Ok(Self::infinite())
+    }
+}
