@@ -13,3 +13,4 @@ authors = ["Cosmo Bobak (cosmobobak@gmail.com)"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+gomokugen = { git = "https://github.com/cosmobobak/gomokugen" }

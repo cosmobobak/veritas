@@ -17,7 +17,7 @@ impl Clock {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Limits {
+pub struct Limits {
     nodes: Option<u64>,
     time: Option<Clock>,
 }

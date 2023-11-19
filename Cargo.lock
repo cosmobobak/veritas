@@ -3,5 +3,13 @@
 version = 3
 
 [[package]]
+name = "gomokugen"
+version = "0.1.0"
+source = "git+https://github.com/cosmobobak/gomokugen#408e9cef65e7f936b51a8e76d59ab1a0f18eac54"
+
+[[package]]
 name = "veritas"
 version = "0.1.0"
+dependencies = [
+ "gomokugen",
+]

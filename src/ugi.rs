@@ -1,4 +1,4 @@
-use crate::{NAME, VERSION};
+use crate::{NAME, VERSION, timemgmt::Limits};
 
 /// The main loop of the Universal Game Interface (UGI).
 pub fn main_loop() {
@@ -33,7 +33,7 @@ pub fn main_loop() {
                 println!("ugiok");
             }
             go if go.starts_with("go") => {
-                let limits = if let Some(limits) = parse_go(go) {
+                let limits: Limits = if let Ok(limits) = go.trim_start_matches("go").trim().parse() {
                     limits
                 } else {
                     println!("info string invalid go command");
