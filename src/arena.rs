@@ -12,12 +12,12 @@ impl Handle {
     }
 
     /// Returns true if this is the null handle.
-    pub const fn is_null(&self) -> bool {
+    pub const fn is_null(self) -> bool {
         self.0 == u32::MAX
     }
 
     /// Returns the index of this handle.
-    pub const fn index(&self) -> u32 {
+    pub const fn index(self) -> u32 {
         self.0
     }
 }
@@ -26,28 +26,22 @@ impl Handle {
 pub struct Arena<T> {
     /// The objects in the arena.
     objects: Vec<T>,
-    /// The free list.
-    free_list: Vec<u32>,
 }
 
 impl<T> Arena<T> {
     /// Creates a new arena.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             objects: Vec::new(),
-            free_list: Vec::new(),
         }
     }
 
     /// Allocates an object in the arena.
     pub fn alloc(&mut self, object: T) -> Handle {
-        if let Some(index) = self.free_list.pop() {
-            self.objects[index as usize] = object;
-            Handle(index)
-        } else {
-            self.objects.push(object);
-            Handle(<_ as TryInto<u32>>::try_into(self.objects.len()).unwrap() - 1)
-        }
+        #![allow(clippy::cast_possible_truncation)]
+        let index = self.objects.len();
+        self.objects.push(object);
+        Handle(index as u32)
     }
 
     /// Returns a reference to an object in the arena.
@@ -68,10 +62,5 @@ impl<T> Arena<T> {
     /// Returns a mutable reference to an object in the arena, if it exists.
     pub fn try_get_mut(&mut self, handle: Handle) -> Option<&mut T> {
         self.objects.get_mut(handle.index() as usize)
-    }
-
-    /// Deallocates an object in the arena.
-    pub fn dealloc(&mut self, handle: Handle) {
-        self.free_list.push(handle.index());
     }
 }

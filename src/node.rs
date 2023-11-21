@@ -31,7 +31,17 @@ enum GameResult {
 }
 
 impl Edge {
-
+    pub fn from_movelist(moves: &[Move]) -> Box<[Self]> {
+        #![allow(clippy::cast_precision_loss)]
+        let mut edges = Vec::with_capacity(moves.len());
+        for &m in moves {
+            edges.push(Self {
+                pov_move: m,
+                probability: 1.0 / moves.len() as f32,
+            });
+        }
+        edges.into_boxed_slice()
+    }
 
     // Returns move from the point of view of the player making it (if as_opponent
     // is false) or as opponent (if as_opponent is true).
