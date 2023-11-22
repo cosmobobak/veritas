@@ -18,6 +18,7 @@ impl Handle {
 
     /// Returns the index of this handle.
     pub const fn index(self) -> usize {
+        assert!(!self.is_null());
         self.0 as usize
     }
 }
