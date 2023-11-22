@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use gomokugen::board::{Move, Board};
 
-use crate::{node::Node, params::Params, timemgmt::Limits};
+use crate::{node::Node, params::Params, timemgmt::Limits, arena::Handle};
 
 pub struct SearchResults {
     /// The best move found.
@@ -84,7 +84,7 @@ impl Engine {
 
     /// Descends the tree, selecting the best node at each step.
     /// Returns the index of a node, and the index of the edge to be expanded.
-    fn select(root: Board<15>, tree: &mut Vec<Node>, params: &Params, mut node_idx: usize) -> (usize, usize) {
+    fn select(root: Board<15>, tree: &mut [Node], params: &Params, mut node_idx: usize) -> (usize, usize) {
         let mut pos = root;
         loop {
             // if the node has had a single visit, expand it
@@ -97,8 +97,9 @@ impl Engine {
                 return (node_idx, usize::MAX);
             }
 
-            let (edge_idx, unexpanded) = Self::uct_best(tree, params, node_idx);
-            if unexpanded {
+            let (edge_idx, child_idx) = Self::uct_best(tree, params, node_idx);
+            // if the node has no children, return it
+            if child_idx.is_null() {
                 return (node_idx, edge_idx);
             }
 
@@ -106,12 +107,15 @@ impl Engine {
             let edge = &tree[node_idx].edges().unwrap()[edge_idx];
             let mv = edge.get_move(false);
             pos.make_move(mv);
+
+            // descend
+            node_idx = child_idx.index();
         }
     }
 
     /// Selects the best immediate edge of a node according to UCT.
-    /// Returns the index of the edge, and whether it was a first-play edge.
-    fn uct_best(tree: &[Node], params: &Params, node_idx: usize) -> (usize, bool) {
+    /// Returns the index of the edge, and a nullable handle to the child.
+    fn uct_best(tree: &[Node], params: &Params, node_idx: usize) -> (usize, Handle) {
         let node = &tree[node_idx];
 
         let exploration_factor = params.c_puct * f64::from(node.visits()).sqrt();
@@ -124,6 +128,7 @@ impl Engine {
 
         let mut best_idx = 0;
         let mut best_value = f64::NEG_INFINITY;
+        let mut best_child = Handle::null();
 
         let edges = node.edges().unwrap();
         let mut child = node.first_child();
@@ -137,28 +142,27 @@ impl Engine {
             let edge = &edges[node.edge_index()];
             let q = node.winrate();
             let u = exploration_factor * edge.probability() / (1.0 + f64::from(node.visits()));
-            values[node.edge_index()] = Some(q + u);
+            values[node.edge_index()] = Some((child, q + u));
             child = node.sibling();
         }
-        let mut unexpanded = false;
         for (idx, value) in values.into_iter().take(edges.len()).enumerate() {
-            if let Some(value) = value {
+            if let Some((handle, value)) = value {
                 if value > best_value {
                     best_idx = idx;
                     best_value = value;
-                    unexpanded = false;
+                    best_child = handle;
                 }
             } else {
                 let value = exploration_factor.mul_add(edges[idx].probability(), first_play_urgency);
                 if value > best_value {
                     best_idx = idx;
                     best_value = value;
-                    unexpanded = true;
+                    best_child = Handle::null();
                 }
             }
         }
 
-        (best_idx, unexpanded)
+        (best_idx, best_child)
     }
 
     /// Expands a node, returning the index of the new node.
