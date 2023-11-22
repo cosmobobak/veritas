@@ -7,6 +7,7 @@ mod timemgmt;
 mod engine;
 mod node;
 mod arena;
+mod params;
 
 /// The name of the engine.
 pub static NAME: &str = "Veritas";

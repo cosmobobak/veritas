@@ -71,7 +71,7 @@ impl Limits {
         }
     }
 
-    const fn is_out_of_time(&self, nodes_searched: u64, elapsed: u64) -> bool {
+    pub const fn is_out_of_time(&self, nodes_searched: u64, elapsed: u64) -> bool {
         if let Some(nodes) = self.nodes {
             if nodes_searched >= nodes {
                 return true;

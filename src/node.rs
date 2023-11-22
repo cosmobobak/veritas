@@ -1,8 +1,8 @@
-use gomokugen::board::Move;
+use gomokugen::board::{Move, Board};
 
 use crate::arena::Handle;
 
-struct Edge {
+pub struct Edge {
     // Move corresponding to this node. From the point of view of a player.
     pov_move: Move,
     // Probability that this move will be made, from the policy head of the neural
@@ -53,8 +53,8 @@ impl Edge {
         }
     }
 
-    pub const fn probability(&self) -> f32 {
-        self.probability
+    pub const fn probability(&self) -> f64 {
+        self.probability as f64
     }
 
     pub fn set_probability(&mut self, probability: f32) {
@@ -72,7 +72,7 @@ pub struct Node {
     wl: f64,
     /// Array of edges from this node.
     /// TODO: store the allocation length out-of-line, as it should fit in a u8.
-    edges: Box<[Edge]>,
+    edges: Option<Box<[Edge]>>,
     /// Index of the parent node in the tree.
     parent: Handle,
     /// Index to a first child. Null for a leaf node.
@@ -97,4 +97,85 @@ pub struct Node {
     upper_bound: GameResult,
     /// Worst possible outcome for this node.
     lower_bound: GameResult,
+}
+
+impl Node {
+    /// Returns the move with the most visits.
+    pub fn best_move(&self, tree: &[Node]) -> Move {
+        let mut best_move = None;
+        let mut best_visits = 0;
+        let mut edge = self.child;
+        while !edge.is_null() {
+            let visits = tree[edge.index()].visits;
+            if visits > best_visits {
+                best_move = Some(tree[edge.index()].edges.as_ref().unwrap()[0].pov_move);
+                best_visits = visits;
+            }
+            edge = tree[edge.index()].sibling;
+        }
+        best_move.expect("no moves in node")
+    }
+
+    /// Returns the distribution of visits to the children of this node.
+    pub fn dist(&self, tree: &[Node]) -> Vec<u64> {
+        let mut dist = Vec::with_capacity(self.edges.as_ref().unwrap().len());
+        let mut edge = self.child;
+        while !edge.is_null() {
+            dist.push(tree[edge.index()].visits as u64);
+            edge = tree[edge.index()].sibling;
+        }
+        dist
+    }
+
+    /// Returns the number of visits to this node.
+    pub const fn visits(&self) -> u32 {
+        self.visits
+    }
+
+    /// Returns the winrate of this node.
+    pub fn winrate(&self) -> f64 {
+        self.wl / self.visits as f64
+    }
+
+    /// Returns a reference to the edges of this node.
+    pub fn edges(&self) -> Option<&[Edge]> {
+        self.edges.as_deref()
+    }
+
+    /// Returns the first child of this node.
+    pub const fn first_child(&self) -> Handle {
+        self.child
+    }
+
+    /// Returns the index of this node in the parent's edge list.
+    pub const fn edge_index(&self) -> usize {
+        self.index as usize
+    }
+
+    /// Returns the next sibling of this node.
+    pub const fn sibling(&self) -> Handle {
+        self.sibling
+    }
+
+    /// Expands this node, adding the legal moves and their policies.
+    pub fn expand(&mut self, pos: Board<15>) {
+        fn policy(_m: Move) -> f32 {
+            todo!()
+        }
+        let mut moves = Vec::with_capacity(15 * 15);
+        pos.generate_moves(|m| {
+            let p = policy(m);
+            moves.push(Edge {
+                pov_move: m,
+                probability: p,
+            });
+            false
+        });
+        self.edges = Some(moves.into_boxed_slice());
+    }
+
+    /// Whether this node is terminal.
+    pub fn is_terminal(&self) -> bool {
+        self.terminal_type == Terminal::Terminal
+    }
 }
