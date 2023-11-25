@@ -166,7 +166,7 @@ impl Engine {
     }
 
     /// Expands a node, returning the index of the new node.
-    fn expand(tree: &mut Vec<Node>, params: &Params, node_idx: usize, edge_idx: usize) -> usize {
+    fn expand(tree: &mut [Node], params: &Params, node_idx: usize, edge_idx: usize) -> usize {
         let last_child = {
             // get a reference to the last expanded child of the node
             let mut child = tree[node_idx].first_child();
