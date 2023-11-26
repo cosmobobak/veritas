@@ -100,6 +100,26 @@ pub struct Node {
 }
 
 impl Node {
+    /// Creates a new node.
+    pub fn new(parent: Handle, edge_index: usize) -> Self {
+        let index = edge_index.try_into().expect("too many edges");
+        Self {
+            wl: 0.0,
+            edges: None,
+            parent,
+            child: Handle::null(),
+            sibling: Handle::null(),
+            draw_probability: 0.0,
+            remaining: 0.0,
+            visits: 0,
+            num_in_flight: 0,
+            index,
+            terminal_type: Terminal::NonTerminal,
+            upper_bound: GameResult::Ongoing,
+            lower_bound: GameResult::Ongoing,
+        }
+    }
+
     /// Returns the move with the most visits.
     pub fn best_move(&self, tree: &[Node]) -> Move {
         let mut best_move = None;
@@ -121,7 +141,7 @@ impl Node {
         let mut dist = Vec::with_capacity(self.edges.as_ref().unwrap().len());
         let mut edge = self.child;
         while !edge.is_null() {
-            dist.push(tree[edge.index()].visits as u64);
+            dist.push(u64::from(tree[edge.index()].visits));
             edge = tree[edge.index()].sibling;
         }
         dist
@@ -134,7 +154,13 @@ impl Node {
 
     /// Returns the winrate of this node.
     pub fn winrate(&self) -> f64 {
-        self.wl / self.visits as f64
+        self.wl / f64::from(self.visits)
+    }
+
+    /// Add a visit to this node.
+    pub fn add_visit(&mut self, value: f64) {
+        self.wl += value;
+        self.visits += 1;
     }
 
     /// Returns a reference to the edges of this node.
@@ -147,6 +173,11 @@ impl Node {
         self.child
     }
 
+    /// Returns a mutable reference to the first child of this node.
+    pub fn first_child_mut(&mut self) -> &mut Handle {
+        &mut self.child
+    }
+
     /// Returns the index of this node in the parent's edge list.
     pub const fn edge_index(&self) -> usize {
         self.index as usize
@@ -155,6 +186,20 @@ impl Node {
     /// Returns the next sibling of this node.
     pub const fn sibling(&self) -> Handle {
         self.sibling
+    }
+
+    /// Returns a mutable reference to the next sibling of this node.
+    pub fn sibling_mut(&mut self) -> &mut Handle {
+        &mut self.sibling
+    }
+
+    /// Returns the parent of the node.
+    pub const fn non_null_parent(&self, tree: &[Self]) -> Option<Handle> {
+        if self.parent.is_null() {
+            None
+        } else {
+            Some(self.parent)
+        }
     }
 
     /// Expands this node, adding the legal moves and their policies.

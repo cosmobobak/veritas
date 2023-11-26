@@ -64,7 +64,7 @@ impl Limits {
         }
     }
 
-    const fn infinite() -> Self {
+    pub const fn infinite() -> Self {
         Self {
             nodes: None,
             time: None,
