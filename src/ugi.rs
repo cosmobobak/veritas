@@ -1,4 +1,6 @@
-use crate::{NAME, VERSION, timemgmt::Limits};
+use gomokugen::board::Board;
+
+use crate::{NAME, VERSION, timemgmt::Limits, engine::{Engine, SearchResults}, params::Params};
 
 /// The main loop of the Universal Game Interface (UGI).
 pub fn main_loop() {
@@ -15,6 +17,11 @@ pub fn main_loop() {
 
     let version_extension = if cfg!(feature = "final-release") { "" } else { "-dev" };
     println!("{NAME} {VERSION}{version_extension} by Cosmo");
+
+    let default_params = Params::default();
+    let default_limits = Limits::default();
+    let starting_position = Board::new();
+    let mut engine = Engine::new(default_params, default_limits, starting_position);
 
     loop {
         std::io::Write::flush(&mut std::io::stdout()).expect("couldn't flush stdout");
@@ -39,8 +46,13 @@ pub fn main_loop() {
                     println!("info string invalid go command");
                     continue;
                 };
+                engine.set_limits(limits);
+                let SearchResults { best_move, root_dist } = engine.go();
+                println!("bestmove {}", best_move);
             }
             unknown => println!("info string unknown command: {unknown}"),
         }
     }
+
+    stdin_reader_thread.join().expect("couldn't join stdin reader thread");
 }

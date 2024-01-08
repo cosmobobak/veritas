@@ -34,6 +34,11 @@ impl Engine {
         }
     }
 
+    /// Sets the limits on the search.
+    pub fn set_limits(&mut self, limits: Limits) {
+        self.limits = limits;
+    }
+
     /// Runs the engine.
     pub fn go(&mut self) -> SearchResults {
         Self::search(self.root, &mut self.tree, &self.params, &self.limits);
