@@ -11,7 +11,7 @@ checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
 [[package]]
 name = "gomokugen"
 version = "0.1.0"
-source = "git+https://github.com/cosmobobak/gomokugen#297591e69cd84c84b7e2c14c2e209ce81bd1f0b5"
+source = "git+https://github.com/cosmobobak/gomokugen#0e2a8dbf51c8fbf2662d5686d255a12528bfe0d8"
 
 [[package]]
 name = "veritas"

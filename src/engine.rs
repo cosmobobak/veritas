@@ -2,11 +2,11 @@ use std::time::Instant;
 
 use gomokugen::board::{Move, Board};
 
-use crate::{node::Node, params::Params, timemgmt::Limits, arena::Handle};
+use crate::{node::Node, params::Params, timemgmt::Limits, arena::Handle, BOARD_SIZE};
 
 pub struct SearchResults {
     /// The best move found.
-    pub best_move: Move,
+    pub best_move: Move<BOARD_SIZE>,
     /// The root rollout distribution.
     pub root_dist: Vec<u64>,
 }

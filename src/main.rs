@@ -19,6 +19,8 @@ pub static NAME: &str = "Veritas";
 /// The version of the engine.
 pub static VERSION: &str = env!("CARGO_PKG_VERSION");
 
+const BOARD_SIZE: usize = 15;
+
 fn main() {
     #[cfg(debug_assertions)]
     std::env::set_var("RUST_BACKTRACE", "1");

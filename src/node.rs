@@ -1,10 +1,10 @@
 use gomokugen::board::{Move, Board};
 
-use crate::arena::Handle;
+use crate::{arena::Handle, BOARD_SIZE};
 
 pub struct Edge {
     // Move corresponding to this node. From the point of view of a player.
-    pov_move: Move,
+    pov_move: Move<BOARD_SIZE>,
     // Probability that this move will be made, from the policy head of the neural
     // network. TODO: leela compresses this into a short.
     probability: f32,
@@ -31,7 +31,7 @@ enum GameResult {
 }
 
 impl Edge {
-    pub fn from_movelist(moves: &[Move]) -> Box<[Self]> {
+    pub fn from_movelist(moves: &[Move<BOARD_SIZE>]) -> Box<[Self]> {
         #![allow(clippy::cast_precision_loss)]
         let mut edges = Vec::new();
         edges.reserve_exact(moves.len());
@@ -46,7 +46,7 @@ impl Edge {
 
     // Returns move from the point of view of the player making it (if as_opponent
     // is false) or as opponent (if as_opponent is true).
-    pub const fn get_move(&self, as_opponent: bool) -> Move {
+    pub const fn get_move(&self, as_opponent: bool) -> Move<BOARD_SIZE> {
         if as_opponent {
             todo!()
         } else {
@@ -122,7 +122,7 @@ impl Node {
     }
 
     /// Returns the move with the most visits.
-    pub fn best_move(&self, tree: &[Self]) -> Move {
+    pub fn best_move(&self, tree: &[Self]) -> Move<BOARD_SIZE> {
         let mut best_move = None;
         let mut best_visits = 0;
         let mut edge = self.child;
@@ -204,11 +204,11 @@ impl Node {
     }
 
     /// Expands this node, adding the legal moves and their policies.
-    pub fn expand(&mut self, pos: Board<15>) {
-        fn policy(_m: Move) -> f32 {
+    pub fn expand(&mut self, pos: Board<BOARD_SIZE>) {
+        fn policy(_m: Move<BOARD_SIZE>) -> f32 {
             todo!()
         }
-        let mut moves = Vec::with_capacity(15 * 15);
+        let mut moves = Vec::with_capacity(BOARD_SIZE * BOARD_SIZE);
         pos.generate_moves(|m| {
             let p = policy(m);
             moves.push(Edge {
