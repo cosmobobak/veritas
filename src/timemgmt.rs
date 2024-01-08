@@ -87,6 +87,12 @@ impl Limits {
     }
 }
 
+impl Default for Limits {
+    fn default() -> Self {
+        Self::infinite()
+    }
+}
+
 impl std::ops::Add for Limits {
     type Output = Self;
 

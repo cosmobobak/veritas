@@ -34,7 +34,7 @@ impl Engine {
         }
     }
 
-    /// Sets the search limits.
+    /// Sets the limits on the search.
     pub fn set_limits(&mut self, limits: Limits) {
         self.limits = limits;
     }

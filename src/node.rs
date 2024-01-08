@@ -33,7 +33,8 @@ enum GameResult {
 impl Edge {
     pub fn from_movelist(moves: &[Move]) -> Box<[Self]> {
         #![allow(clippy::cast_precision_loss)]
-        let mut edges = Vec::with_capacity(moves.len());
+        let mut edges = Vec::new();
+        edges.reserve_exact(moves.len());
         for &m in moves {
             edges.push(Self {
                 pov_move: m,
@@ -121,7 +122,7 @@ impl Node {
     }
 
     /// Returns the move with the most visits.
-    pub fn best_move(&self, tree: &[Node]) -> Move {
+    pub fn best_move(&self, tree: &[Self]) -> Move {
         let mut best_move = None;
         let mut best_visits = 0;
         let mut edge = self.child;
@@ -137,7 +138,7 @@ impl Node {
     }
 
     /// Returns the distribution of visits to the children of this node.
-    pub fn dist(&self, tree: &[Node]) -> Vec<u64> {
+    pub fn dist(&self, tree: &[Self]) -> Vec<u64> {
         let mut dist = Vec::with_capacity(self.edges.as_ref().unwrap().len());
         let mut edge = self.child;
         while !edge.is_null() {
