@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 
 /// A handle to an object in the arena.
 /// 
@@ -29,45 +31,12 @@ impl Handle {
     }
 }
 
-/// An arena for storing objects.
-pub struct Arena<T> {
-    /// The objects in the arena.
-    objects: Vec<T>,
-}
-
-impl<T> Arena<T> {
-    /// Creates a new arena.
-    pub const fn new() -> Self {
-        Self {
-            objects: Vec::new(),
+impl Debug for Handle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_null() {
+            write!(f, "Handle::null()")
+        } else {
+            write!(f, "Handle({})", self.index())
         }
-    }
-
-    /// Allocates an object in the arena.
-    pub fn alloc(&mut self, object: T) -> Handle {
-        #![allow(clippy::cast_possible_truncation)]
-        let index = self.objects.len();
-        self.objects.push(object);
-        Handle(index as u32)
-    }
-
-    /// Returns a reference to an object in the arena.
-    pub fn get(&self, handle: Handle) -> &T {
-        &self.objects[handle.index() as usize]
-    }
-
-    /// Returns a mutable reference to an object in the arena.
-    pub fn get_mut(&mut self, handle: Handle) -> &mut T {
-        &mut self.objects[handle.index() as usize]
-    }
-
-    /// Returns a reference to an object in the arena, if it exists.
-    pub fn try_get(&self, handle: Handle) -> Option<&T> {
-        self.objects.get(handle.index() as usize)
-    }
-
-    /// Returns a mutable reference to an object in the arena, if it exists.
-    pub fn try_get_mut(&mut self, handle: Handle) -> Option<&mut T> {
-        self.objects.get_mut(handle.index() as usize)
     }
 }

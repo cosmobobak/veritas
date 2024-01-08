@@ -48,7 +48,7 @@ pub fn main_loop() {
                 };
                 engine.set_limits(limits);
                 let SearchResults { best_move, root_dist } = engine.go();
-                println!("bestmove {}", best_move);
+                println!("bestmove {best_move}");
             }
             unknown => println!("info string unknown command: {unknown}"),
         }

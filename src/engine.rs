@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use gomokugen::board::{Move, Board};
 
-use crate::{node::Node, params::Params, timemgmt::Limits, arena::Handle, BOARD_SIZE};
+use crate::{node::{Node, self}, params::Params, timemgmt::Limits, arena::Handle, BOARD_SIZE};
 
 pub struct SearchResults {
     /// The best move found.
@@ -41,7 +41,11 @@ impl Engine {
 
     /// Runs the engine.
     pub fn go(&mut self) -> SearchResults {
+        eprintln!("[CALL] Engine::go()");
+
         Self::search(self.root, &mut self.tree, &self.params, &self.limits);
+
+        node::print_tree(0, &self.tree);
 
         let best_move = self.tree[0].best_move(&self.tree);
 
@@ -55,9 +59,17 @@ impl Engine {
 
     /// Repeat the search loop until the time limit is reached.
     fn search(root: Board<15>, tree: &mut Vec<Node>, params: &Params, limits: &Limits) {
+        eprintln!("[CALL] Engine::search(root, tree, params, limits)");
+
         let start_time = Instant::now();
         let mut nodes_searched = 0;
         let mut elapsed = 0;
+
+        if tree.is_empty() {
+            // create the root node
+            tree.push(Node::new(Handle::null(), 0));
+            tree[0].expand(root);
+        }
 
         while !limits.is_out_of_time(nodes_searched, elapsed) {
             // perform one iteration of selection, expansion, simulation, and backpropagation
@@ -74,6 +86,8 @@ impl Engine {
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
     fn do_sesb(root: Board<15>, tree: &mut Vec<Node>, params: &Params) {
+        eprintln!("[CALL] Engine::do_sesb(root, tree, params)");
+
         // select
         let (best_node, edge_to_expand, board_state) = Self::select(root, tree, params, 0);
 
@@ -90,6 +104,8 @@ impl Engine {
     /// Descends the tree, selecting the best node at each step.
     /// Returns the index of a node, and the index of the edge to be expanded.
     fn select(root: Board<15>, tree: &mut [Node], params: &Params, mut node_idx: usize) -> (usize, usize, Board<15>) {
+        eprintln!("[CALL] Engine::select(root, tree, params, node_idx = {node_idx})");
+
         let mut pos = root;
         loop {
             // if the node has had a single visit, expand it
@@ -121,6 +137,8 @@ impl Engine {
     /// Selects the best immediate edge of a node according to UCT.
     /// Returns the index of the edge, and a nullable handle to the child.
     fn uct_best(tree: &[Node], params: &Params, node_idx: usize) -> (usize, Handle) {
+        eprintln!("[CALL] Engine::uct_best(tree, params, node_idx = {node_idx})");
+
         let node = &tree[node_idx];
 
         let exploration_factor = params.c_puct * f64::from(node.visits()).sqrt();
@@ -172,6 +190,8 @@ impl Engine {
 
     /// Expands an edge of a given node, returning a handle to the new node.
     fn expand(tree: &mut Vec<Node>, params: &Params, node_idx: usize, edge_idx: usize) -> Handle {
+        eprintln!("[CALL] Engine::expand(tree, params, node_idx = {node_idx}, edge_idx = {edge_idx})");
+
         let last_child_of_expanding_node = {
             // get a reference to the last expanded child of the node
             let mut child = tree[node_idx].first_child();
@@ -209,6 +229,8 @@ impl Engine {
 
     /// Backpropagates the value up the tree.
     fn backpropagate(tree: &mut [Node], mut node: Handle, mut value: f64) {
+        eprintln!("[CALL] Engine::backpropagate(tree, node, value)");
+
         while let Some(parent) = tree[node.index()].non_null_parent(tree) {
             tree[parent.index()].add_visit(value);
             node = parent;

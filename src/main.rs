@@ -13,6 +13,7 @@ mod node;
 mod arena;
 mod params;
 mod game;
+mod debug;
 
 /// The name of the engine.
 pub static NAME: &str = "Veritas";
@@ -32,7 +33,7 @@ fn main() {
 
     // test engine behaviour:
     let params = params::Params {
-        c_puct: 1.0,
+        c_puct: 1.41,
         valuator: Box::new(|b| game::rollout(*b).into())
     };
 
@@ -42,7 +43,7 @@ fn main() {
         Board::new(),
     );
 
-    engine.set_limits("nodes 1000".parse().unwrap());
+    engine.set_limits("nodes 3".parse().unwrap());
 
     let results = engine.go();
 

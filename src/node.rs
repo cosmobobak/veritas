@@ -2,6 +2,7 @@ use gomokugen::board::{Move, Board};
 
 use crate::{arena::Handle, BOARD_SIZE};
 
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Edge {
     // Move corresponding to this node. From the point of view of a player.
     pov_move: Move<BOARD_SIZE>,
@@ -123,14 +124,23 @@ impl Node {
 
     /// Returns the move with the most visits.
     pub fn best_move(&self, tree: &[Self]) -> Move<BOARD_SIZE> {
+        eprintln!("[CALL] Node::best_move(self, tree) (self.index = {})", self.index);
+
         let mut best_move = None;
-        let mut best_visits = 0;
+        let mut best_visits = -1;
         let mut edge = self.child;
         while !edge.is_null() {
             let visits = tree[edge.index()].visits;
-            if visits > best_visits {
-                best_move = Some(tree[edge.index()].edges.as_ref().unwrap()[0].pov_move);
-                best_visits = visits;
+            eprintln!("  edge = {edge:?}, visits = {visits}");
+            if i64::from(visits) > best_visits {
+                // we have the index of the node in the tree - we want to get the move.
+                // the move is stored in our edge list, but we don't know which edge in the
+                // edge list that this node corresponds to, so we
+                // 1. look up the node in the tree using the index
+                // 2. get the index of the node's inbound edge in our edge list
+                // 3. look up that index in our edge list.
+                best_move = Some(self.edges().unwrap()[tree[edge.index()].edge_index()].get_move(false));
+                best_visits = i64::from(visits);
             }
             edge = tree[edge.index()].sibling;
         }
@@ -206,7 +216,7 @@ impl Node {
     /// Expands this node, adding the legal moves and their policies.
     pub fn expand(&mut self, pos: Board<BOARD_SIZE>) {
         fn policy(_m: Move<BOARD_SIZE>) -> f32 {
-            todo!()
+            1.0 / (BOARD_SIZE.pow(2)) as f32
         }
         let mut moves = Vec::with_capacity(BOARD_SIZE * BOARD_SIZE);
         pos.generate_moves(|m| {
@@ -223,5 +233,29 @@ impl Node {
     /// Whether this node is terminal.
     pub fn is_terminal(&self) -> bool {
         self.terminal_type == Terminal::Terminal
+    }
+}
+
+pub fn print_tree(root: usize, tree: &[Node]) {
+    let mut stack = vec![Handle::from_index(root, tree)];
+    while let Some(node) = stack.pop() {
+        let node = &tree[node.index()];
+        println!(
+            "Node from move {} (parent {:?}, child {:?}, sibling {:?})",
+            node.index, node.parent, node.child, node.sibling
+        );
+        if let Some(edges) = node.edges() {
+            print!("  Edges: [");
+            for edge in edges {
+                print!("{edge:?}, ");
+            }
+            println!("]");
+        }
+        if !node.child.is_null() {
+            stack.push(node.child);
+        }
+        if !node.sibling.is_null() {
+            stack.push(node.sibling);
+        }
     }
 }
