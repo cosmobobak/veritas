@@ -21,6 +21,12 @@ impl Handle {
         assert!(!self.is_null());
         self.0 as usize
     }
+
+    /// Returns the handle with the given index.
+    pub const fn from_index<T>(index: usize, memory: &[T]) -> Self {
+        assert!(index < memory.len());
+        Self(index as u32)
+    }
 }
 
 /// An arena for storing objects.

@@ -75,21 +75,21 @@ impl Engine {
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
     fn do_sesb(root: Board<15>, tree: &mut Vec<Node>, params: &Params) {
         // select
-        let (best_node, edge_to_expand) = Self::select(root, tree, params, 0);
+        let (best_node, edge_to_expand, board_state) = Self::select(root, tree, params, 0);
 
         // expand
         let new_node = Self::expand(tree, params, best_node, edge_to_expand);
 
         // simulate
-        let value = Self::simulate(tree, params, new_node);
+        let value = (params.valuator)(&board_state);
 
         // backpropagate
-        Self::backpropagate(tree, params, new_node, value);
+        Self::backpropagate(tree, new_node, value);
     }
 
     /// Descends the tree, selecting the best node at each step.
     /// Returns the index of a node, and the index of the edge to be expanded.
-    fn select(root: Board<15>, tree: &mut [Node], params: &Params, mut node_idx: usize) -> (usize, usize) {
+    fn select(root: Board<15>, tree: &mut [Node], params: &Params, mut node_idx: usize) -> (usize, usize, Board<15>) {
         let mut pos = root;
         loop {
             // if the node has had a single visit, expand it
@@ -99,13 +99,13 @@ impl Engine {
 
             // if the node is terminal, return it
             if tree[node_idx].is_terminal() {
-                return (node_idx, usize::MAX);
+                return (node_idx, usize::MAX, pos);
             }
 
             let (edge_idx, child_idx) = Self::uct_best(tree, params, node_idx);
             // if the node has no children, return it
             if child_idx.is_null() {
-                return (node_idx, edge_idx);
+                return (node_idx, edge_idx, pos);
             }
 
             // it's *not* unexpanded, so we can descend
@@ -170,9 +170,9 @@ impl Engine {
         (best_idx, best_child)
     }
 
-    /// Expands a node, returning the index of the new node.
-    fn expand(tree: &mut [Node], params: &Params, node_idx: usize, edge_idx: usize) -> usize {
-        let last_child = {
+    /// Expands an edge of a given node, returning a handle to the new node.
+    fn expand(tree: &mut Vec<Node>, params: &Params, node_idx: usize, edge_idx: usize) -> Handle {
+        let last_child_of_expanding_node = {
             // get a reference to the last expanded child of the node
             let mut child = tree[node_idx].first_child();
             while !child.is_null() {
@@ -185,16 +185,34 @@ impl Engine {
             child
         };
 
-        todo!()
+        // allocate a new node
+        let parent_handle = Handle::from_index(node_idx, tree);
+        let new_node = Node::new(parent_handle, edge_idx);
+
+        // write the new node to the tree
+        tree.push(new_node);
+        let handle = Handle::from_index(tree.len() - 1, tree);
+
+        let memory_to_write_to = if last_child_of_expanding_node.is_null() {
+            // there were *no* children, so we can just write to the node itself
+            tree[node_idx].first_child_mut()
+        } else {
+            // there were children, so we have to write to the sibling of the last child
+            tree[last_child_of_expanding_node.index()].sibling_mut()
+        };
+
+        assert!(memory_to_write_to.is_null(), "attempted to overwrite a non-null handle.");
+        *memory_to_write_to = handle;
+
+        handle
     }
 
-    /// Simulates a game.
-    fn simulate(tree: &mut Vec<Node>, params: &Params, node: usize) -> f32 {
-        todo!()
-    }
-
-    /// Backpropagates the value of a simulation.
-    fn backpropagate(tree: &mut Vec<Node>, params: &Params, node: usize, value: f32) {
-        todo!()
+    /// Backpropagates the value up the tree.
+    fn backpropagate(tree: &mut [Node], mut node: Handle, mut value: f64) {
+        while let Some(parent) = tree[node.index()].non_null_parent(tree) {
+            tree[parent.index()].add_visit(value);
+            node = parent;
+            value = 1.0 - value;
+        }
     }
 }

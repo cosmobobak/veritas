@@ -3,13 +3,20 @@
 version = 3
 
 [[package]]
+name = "fastrand"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
+
+[[package]]
 name = "gomokugen"
 version = "0.1.0"
-source = "git+https://github.com/cosmobobak/gomokugen#408e9cef65e7f936b51a8e76d59ab1a0f18eac54"
+source = "git+https://github.com/cosmobobak/gomokugen#297591e69cd84c84b7e2c14c2e209ce81bd1f0b5"
 
 [[package]]
 name = "veritas"
 version = "0.1.0"
 dependencies = [
+ "fastrand",
  "gomokugen",
 ]
