@@ -81,8 +81,10 @@ impl Engine {
             // perform one iteration of selection, expansion, simulation, and backpropagation
             Self::do_sesb(root, tree, params);
 
-            // update elapsed time
+            // update elapsed time and print stats
             if nodes_searched % 256 == 0 {
+                print!("info nodes {} time {} score cp {} pv", nodes_searched, elapsed, tree[0].winrate() * 100.0);
+                Self::print_pv(root, tree, params);
                 elapsed = u64::try_from(start_time.elapsed().as_millis()).expect("elapsed time overflow");
             }
             // update nodes searched
@@ -143,6 +145,24 @@ impl Engine {
             // descend
             node_idx = child_idx.index();
         }
+    }
+
+    /// Prints out the current line of best play.
+    pub fn print_pv(root: Board<BOARD_SIZE>, tree: &[Node], params: &Params) {
+        let mut node_idx = Handle::from_index(0, tree);
+        let mut pos = root;
+        while !node_idx.is_null() {
+            if tree[node_idx.index()].edges().is_none() {
+                break;
+            }
+            let (edge_idx, child_idx) = Self::uct_best(tree, params, node_idx.index());
+            let edge = &tree[node_idx.index()].edges().unwrap()[edge_idx];
+            let best_move = edge.get_move(false);
+            print!(" {best_move}");
+            pos.make_move(best_move);
+            node_idx = child_idx;
+        }
+        println!();
     }
 
     /// Selects the best immediate edge of a node according to UCT.
