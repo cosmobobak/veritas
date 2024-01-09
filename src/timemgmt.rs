@@ -138,11 +138,20 @@ impl FromStr for Limits {
                 }
                 "p1time" => {
                     let p1time = words.next().ok_or(())?.parse().map_err(|_| ())?;
-                    let _ = words.next().ok_or(())?; // "p2time"
+                    let t = words.next().ok_or(())?; // "p2time"
+                    if t != "p2time" {
+                        return Err(());
+                    }
                     let p2time = words.next().ok_or(())?.parse().map_err(|_| ())?;
-                    let _ = words.next().ok_or(())?; // "p1inc"
+                    let t = words.next().ok_or(())?; // "p1inc"
+                    if t != "p1inc" {
+                        return Err(());
+                    }
                     let p1inc = words.next().ok_or(())?.parse().map_err(|_| ())?;
-                    let _ = words.next().ok_or(())?; // "p2inc"
+                    let t = words.next().ok_or(())?; // "p2inc"
+                    if t != "p2inc" {
+                        return Err(());
+                    }
                     let p2inc = words.next().ok_or(())?.parse().map_err(|_| ())?;
                     components.push(Self::time(p1time, p1inc, p2time, p2inc));
                 }

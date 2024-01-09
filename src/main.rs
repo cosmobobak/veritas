@@ -20,11 +20,13 @@ pub static NAME: &str = "Veritas";
 /// The version of the engine.
 pub static VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const BOARD_SIZE: usize = 15;
+const BOARD_SIZE: usize = 9;
 
 fn main() {
     #[cfg(debug_assertions)]
     std::env::set_var("RUST_BACKTRACE", "1");
+
+    env_logger::init();
 
     // if std::env::args_os().len() == 1 {
     //     // fast path to UCI:
@@ -33,7 +35,7 @@ fn main() {
 
     // test engine behaviour:
     let params = params::Params {
-        c_puct: 1.41,
+        c_puct: 10.41,
         valuator: Box::new(|b| game::rollout(*b).into())
     };
 
@@ -43,10 +45,11 @@ fn main() {
         Board::new(),
     );
 
-    engine.set_limits("nodes 3".parse().unwrap());
+    engine.set_limits("nodes 500000".parse().unwrap());
 
     let results = engine.go();
 
     println!("best move: {}", results.best_move);
     println!("root dist: {:?}", results.root_dist);
+    println!("nodes in tree: {}", engine.tree().len());
 }

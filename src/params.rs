@@ -1,10 +1,10 @@
 use gomokugen::board::Board;
 
-
+use crate::BOARD_SIZE;
 
 pub struct Params {
     pub c_puct: f64,
-    pub valuator: Box<dyn Fn(&Board<15>) -> f64>,
+    pub valuator: Box<dyn Fn(&Board<BOARD_SIZE>) -> f64>,
 }
 
 impl Default for Params {

@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use gomokugen::board::{Move, Board};
 
-use crate::{node::{Node, self}, params::Params, timemgmt::Limits, arena::Handle, BOARD_SIZE};
+use crate::{node::Node, params::Params, timemgmt::Limits, arena::Handle, BOARD_SIZE};
 
 pub struct SearchResults {
     /// The best move found.
@@ -20,18 +20,22 @@ pub struct Engine {
     /// The storage for the search tree.
     tree: Vec<Node>,
     /// The root position.
-    root: Board<15>,
+    root: Board<BOARD_SIZE>,
 }
 
 impl Engine {
     /// Creates a new engine.
-    pub const fn new(params: Params, limits: Limits, root: Board<15>) -> Self {
+    pub const fn new(params: Params, limits: Limits, root: Board<BOARD_SIZE>) -> Self {
         Self {
             params,
             limits,
             tree: Vec::new(),
             root,
         }
+    }
+
+    pub fn tree(&self) -> &[Node] {
+        &self.tree
     }
 
     /// Sets the limits on the search.
@@ -41,15 +45,17 @@ impl Engine {
 
     /// Runs the engine.
     pub fn go(&mut self) -> SearchResults {
-        eprintln!("[CALL] Engine::go()");
+        log::trace!("Engine::go()");
 
         Self::search(self.root, &mut self.tree, &self.params, &self.limits);
 
-        node::print_tree(0, &self.tree);
+        // node::print_tree(0, &self.tree);
 
         let best_move = self.tree[0].best_move(&self.tree);
 
         let root_dist = self.tree[0].dist(&self.tree);
+
+        println!("{:?}", self.tree[0]);
 
         SearchResults {
             best_move,
@@ -58,8 +64,8 @@ impl Engine {
     }
 
     /// Repeat the search loop until the time limit is reached.
-    fn search(root: Board<15>, tree: &mut Vec<Node>, params: &Params, limits: &Limits) {
-        eprintln!("[CALL] Engine::search(root, tree, params, limits)");
+    fn search(root: Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, limits: &Limits) {
+        log::trace!("Engine::search(root, tree, params, limits)");
 
         let start_time = Instant::now();
         let mut nodes_searched = 0;
@@ -82,11 +88,13 @@ impl Engine {
             // update nodes searched
             nodes_searched += 1;
         }
+
+        log::trace!("Engine::search: finished search loop with {} entries in tree.", tree.len());
     }
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
-    fn do_sesb(root: Board<15>, tree: &mut Vec<Node>, params: &Params) {
-        eprintln!("[CALL] Engine::do_sesb(root, tree, params)");
+    fn do_sesb(root: Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params) {
+        log::trace!("Engine::do_sesb(root, tree, params)");
 
         // select
         let (best_node, edge_to_expand, board_state) = Self::select(root, tree, params, 0);
@@ -103,12 +111,14 @@ impl Engine {
 
     /// Descends the tree, selecting the best node at each step.
     /// Returns the index of a node, and the index of the edge to be expanded.
-    fn select(root: Board<15>, tree: &mut [Node], params: &Params, mut node_idx: usize) -> (usize, usize, Board<15>) {
-        eprintln!("[CALL] Engine::select(root, tree, params, node_idx = {node_idx})");
+    fn select(root: Board<BOARD_SIZE>, tree: &mut [Node], params: &Params, mut node_idx: usize) -> (usize, usize, Board<BOARD_SIZE>) {
+        log::trace!("Engine::select(root, tree, params, node_idx = {node_idx})");
 
         let mut pos = root;
         loop {
             // if the node has had a single visit, expand it
+            // here, "expand" means adding all the legal moves to the node
+            // with corresponding policy probabilities.
             if tree[node_idx].visits() == 1 {
                 tree[node_idx].expand(pos);
             }
@@ -119,12 +129,13 @@ impl Engine {
             }
 
             let (edge_idx, child_idx) = Self::uct_best(tree, params, node_idx);
-            // if the node has no children, return it
+            // if the node has no children, return it, because we can't descend any further.
             if child_idx.is_null() {
                 return (node_idx, edge_idx, pos);
             }
 
             // it's *not* unexpanded, so we can descend
+            log::trace!("Engine::select: descending to child {}", child_idx.index());
             let edge = &tree[node_idx].edges().unwrap()[edge_idx];
             let mv = edge.get_move(false);
             pos.make_move(mv);
@@ -137,7 +148,7 @@ impl Engine {
     /// Selects the best immediate edge of a node according to UCT.
     /// Returns the index of the edge, and a nullable handle to the child.
     fn uct_best(tree: &[Node], params: &Params, node_idx: usize) -> (usize, Handle) {
-        eprintln!("[CALL] Engine::uct_best(tree, params, node_idx = {node_idx})");
+        log::trace!("Engine::uct_best(tree, params, node_idx = {node_idx})");
 
         let node = &tree[node_idx];
 
@@ -148,18 +159,21 @@ impl Engine {
         } else {
             0.5
         };
+        let first_play_urgency = f64::INFINITY;
 
         let mut best_idx = 0;
         let mut best_value = f64::NEG_INFINITY;
         let mut best_child = Handle::null();
 
-        let edges = node.edges().unwrap();
+        let edges = node.edges().unwrap_or_else(|| {
+            panic!("attempted to select the best edge of an unexpanded node. node = {node:?}");
+        });
         let mut child = node.first_child();
 
         // This is slightly problematic because we have to do linked list stuff where
         // only some of the edges have corresponding nodes.
         // The simplest solution is just to have an array that we fill in.
-        let mut values = [None; 15 * 15];
+        let mut values = [None; BOARD_SIZE * BOARD_SIZE];
         while !child.is_null() {
             let node = &tree[child.index()];
             let edge = &edges[node.edge_index()];
@@ -190,10 +204,11 @@ impl Engine {
 
     /// Expands an edge of a given node, returning a handle to the new node.
     fn expand(tree: &mut Vec<Node>, params: &Params, node_idx: usize, edge_idx: usize) -> Handle {
-        eprintln!("[CALL] Engine::expand(tree, params, node_idx = {node_idx}, edge_idx = {edge_idx})");
+        log::trace!("Engine::expand(tree, params, node_idx = {node_idx}, edge_idx = {edge_idx})");
 
         let last_child_of_expanding_node = {
             // get a reference to the last expanded child of the node
+            // TODO: rearchitect this without the break and with a guard.
             let mut child = tree[node_idx].first_child();
             while !child.is_null() {
                 let node = &tree[child.index()];
@@ -229,12 +244,14 @@ impl Engine {
 
     /// Backpropagates the value up the tree.
     fn backpropagate(tree: &mut [Node], mut node: Handle, mut value: f64) {
-        eprintln!("[CALL] Engine::backpropagate(tree, node, value)");
+        log::trace!("Engine::backpropagate(tree, node, value)");
 
+        // backpropagate the value up the tree
+        tree[node.index()].add_visit(value);
         while let Some(parent) = tree[node.index()].non_null_parent(tree) {
+            value = 1.0 - value;
             tree[parent.index()].add_visit(value);
             node = parent;
-            value = 1.0 - value;
         }
     }
 }

@@ -11,7 +11,7 @@ pub struct Edge {
     probability: f32,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Terminal {
     /// This node is not terminal.
     NonTerminal,
@@ -19,7 +19,7 @@ enum Terminal {
     Terminal,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum GameResult {
     /// The game is ongoing.
     Ongoing,
@@ -65,6 +65,7 @@ impl Edge {
     }
 }
 
+#[derive(Debug)]
 pub struct Node {
     /// Average value (from value head of neural network) of all visited nodes in
     /// subtree. For terminal nodes, eval is stored. This is from the perspective
@@ -124,14 +125,14 @@ impl Node {
 
     /// Returns the move with the most visits.
     pub fn best_move(&self, tree: &[Self]) -> Move<BOARD_SIZE> {
-        eprintln!("[CALL] Node::best_move(self, tree) (self.index = {})", self.index);
+        log::trace!("Node::best_move(self, tree) (self.index = {})", self.index);
 
         let mut best_move = None;
         let mut best_visits = -1;
         let mut edge = self.child;
         while !edge.is_null() {
             let visits = tree[edge.index()].visits;
-            eprintln!("  edge = {edge:?}, visits = {visits}");
+            // log::trace!("  edge = {edge:?}, visits = {visits}");
             if i64::from(visits) > best_visits {
                 // we have the index of the node in the tree - we want to get the move.
                 // the move is stored in our edge list, but we don't know which edge in the
@@ -228,6 +229,7 @@ impl Node {
             false
         });
         self.edges = Some(moves.into_boxed_slice());
+        // TODO: set terminal_type, upper_bound, lower_bound. 
     }
 
     /// Whether this node is terminal.
