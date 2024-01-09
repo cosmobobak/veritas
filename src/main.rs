@@ -2,10 +2,6 @@
 
 //! Veritas, a UGI-conformant MCTS-PUCT engine.
 
-use engine::Engine;
-use gomokugen::board::Board;
-use timemgmt::Limits;
-
 mod ugi;
 mod timemgmt;
 mod engine;
@@ -28,28 +24,10 @@ fn main() {
 
     env_logger::init();
 
-    // if std::env::args_os().len() == 1 {
-    //     // fast path to UCI:
-    //     return ugi::main_loop();
-    // }
+    if std::env::args_os().len() == 1 {
+        // fast path to UCI:
+        return ugi::main_loop();
+    }
 
-    // test engine behaviour:
-    let params = params::Params {
-        c_puct: 10.41,
-        valuator: Box::new(|b| game::rollout(*b).into())
-    };
-
-    let mut engine = Engine::new(
-        params,
-        Limits::infinite(),
-        Board::new(),
-    );
-
-    engine.set_limits("nodes 500000".parse().unwrap());
-
-    let results = engine.go();
-
-    println!("best move: {}", results.best_move);
-    println!("root dist: {:?}", results.root_dist);
-    println!("nodes in tree: {}", engine.tree().len());
+    unimplemented!();
 }

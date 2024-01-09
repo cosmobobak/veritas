@@ -1,6 +1,6 @@
 use gomokugen::board::Board;
 
-use crate::BOARD_SIZE;
+use crate::{BOARD_SIZE, game};
 
 pub struct Params {
     pub c_puct: f64,
@@ -9,9 +9,9 @@ pub struct Params {
 
 impl Default for Params {
     fn default() -> Self {
-        Self {
-            c_puct: 1.41,
-            valuator: Box::new(|b| 0.0),
+        Params {
+            c_puct: 10.41,
+            valuator: Box::new(|b| game::rollout(*b).into())
         }
     }
 }

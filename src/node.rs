@@ -1,4 +1,4 @@
-use gomokugen::board::{Move, Board};
+use gomokugen::board::{Move, Board, Player};
 
 use crate::{arena::Handle, BOARD_SIZE};
 
@@ -219,6 +219,7 @@ impl Node {
         fn policy(_m: Move<BOARD_SIZE>) -> f32 {
             1.0 / (BOARD_SIZE.pow(2)) as f32
         }
+
         let mut moves = Vec::with_capacity(BOARD_SIZE * BOARD_SIZE);
         pos.generate_moves(|m| {
             let p = policy(m);
@@ -229,7 +230,17 @@ impl Node {
             false
         });
         self.edges = Some(moves.into_boxed_slice());
-        // TODO: set terminal_type, upper_bound, lower_bound. 
+
+        if let Some(result) = pos.outcome() {
+            self.terminal_type = Terminal::Terminal;
+            let game_result = match result {
+                Player::None => GameResult::Draw,
+                Player::X => GameResult::FirstPlayerWin,
+                Player::O => GameResult::SecondPlayerWin,
+            };
+            self.upper_bound = game_result;
+            self.lower_bound = game_result;
+        }
     }
 
     /// Whether this node is terminal.
