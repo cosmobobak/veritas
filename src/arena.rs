@@ -1,8 +1,7 @@
 use std::fmt::Debug;
 
-
 /// A handle to an object in the arena.
-/// 
+///
 /// TODO: Make this non-null, with a separate nullable handle.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Handle(u32);
@@ -25,9 +24,9 @@ impl Handle {
     }
 
     /// Returns the handle with the given index.
-    pub const fn from_index<T>(index: usize, memory: &[T]) -> Self {
+    pub fn from_index<T>(index: usize, memory: &[T]) -> Self {
         assert!(index < memory.len());
-        Self(index as u32)
+        Self(index.try_into().expect("index too large"))
     }
 }
 
