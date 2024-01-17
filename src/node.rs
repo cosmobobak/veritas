@@ -1,4 +1,7 @@
+use std::alloc::Layout;
+
 use gomokugen::board::{Board, Move, Player};
+use smallvec::SmallVec;
 
 use crate::{arena::Handle, BOARD_SIZE};
 
@@ -205,7 +208,7 @@ impl Node {
 
     /// Expands this node, adding the legal moves and their policies.
     pub fn expand(&mut self, &pos: &Board<BOARD_SIZE>, policy: &[f32]) {
-        let mut moves = Vec::with_capacity(BOARD_SIZE * BOARD_SIZE);
+        let mut moves = SmallVec::<[Edge; BOARD_SIZE * BOARD_SIZE]>::new();
         let mut max_logit = -1000.0;
         pos.generate_moves(|m| {
             let logit = policy[m.index()];
@@ -237,7 +240,20 @@ impl Node {
             );
         }
 
-        self.edges = Some(moves.into_boxed_slice());
+        // allocate the edge list and copy the moves into it
+        unsafe {
+            let layout = Layout::array::<Edge>(moves.len()).unwrap();
+            // cast_ptr_alignment is fine because we're allocating using the Edge layout
+            #[allow(clippy::cast_ptr_alignment)]
+            let ptr = std::alloc::alloc(layout).cast::<Edge>();
+            if ptr.is_null() {
+                std::alloc::handle_alloc_error(layout);
+            }
+            // copy the moves into the edge list
+            ptr.copy_from_nonoverlapping(moves.as_ptr(), moves.len());
+            let boxed_slice = Box::from_raw(std::slice::from_raw_parts_mut(ptr, moves.len()));
+            self.edges = Some(boxed_slice);
+        }
 
         if let Some(result) = pos.outcome() {
             self.terminal_type = Terminal::Terminal;
