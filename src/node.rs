@@ -220,7 +220,7 @@ impl Node {
     }
 
     /// Expands this node, adding the legal moves and their policies.
-    pub fn expand(&mut self, pos: Board<BOARD_SIZE>) {
+    pub fn expand(&mut self, &pos: &Board<BOARD_SIZE>) {
         fn policy(_m: Move<BOARD_SIZE>) -> f32 {
             #![allow(clippy::cast_precision_loss)]
             1.0 / (BOARD_SIZE.pow(2)) as f32

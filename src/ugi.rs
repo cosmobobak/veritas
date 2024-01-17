@@ -71,7 +71,7 @@ pub fn main_loop() {
     let default_params = Params::default().with_stdin_rx(&stdin);
     let default_limits = Limits::default();
     let starting_position = Board::new();
-    let mut engine = Engine::new(default_params, default_limits, starting_position);
+    let mut engine = Engine::new(default_params, default_limits, &starting_position);
 
     loop {
         std::io::Write::flush(&mut std::io::stdout()).expect("couldn't flush stdout");
@@ -124,7 +124,7 @@ pub fn main_loop() {
                         continue;
                     }
                 };
-                engine.set_position(board);
+                engine.set_position(&board);
             }
             unknown => println!("info string unknown command: {unknown}"),
         }

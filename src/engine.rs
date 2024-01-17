@@ -38,12 +38,12 @@ enum SelectionResult {
 
 impl<'a> Engine<'a> {
     /// Creates a new engine.
-    pub const fn new(params: Params<'a>, limits: Limits, root: Board<BOARD_SIZE>) -> Self {
+    pub const fn new(params: Params<'a>, limits: Limits, root: &Board<BOARD_SIZE>) -> Self {
         Self {
             params,
             limits,
             tree: Vec::new(),
-            root,
+            root: *root,
         }
     }
 
@@ -58,8 +58,8 @@ impl<'a> Engine<'a> {
 
     /// Sets the position to search from.
     /// This clears the search tree, but could in future be altered to retain some subtree.
-    pub fn set_position(&mut self, root: Board<BOARD_SIZE>) {
-        self.root = root;
+    pub fn set_position(&mut self, root: &Board<BOARD_SIZE>) {
+        self.root = *root;
         self.tree.clear();
     }
 
@@ -67,7 +67,7 @@ impl<'a> Engine<'a> {
     pub fn go(&mut self) -> SearchResults {
         log::trace!("Engine::go()");
 
-        Self::search(self.root, &mut self.tree, &self.params, &self.limits);
+        Self::search(&self.root, &mut self.tree, &self.params, &self.limits);
 
         // node::print_tree(0, &self.tree);
 
@@ -84,7 +84,7 @@ impl<'a> Engine<'a> {
     }
 
     /// Repeat the search loop until the time limit is reached.
-    fn search(root: Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, limits: &Limits) {
+    fn search(root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, limits: &Limits) {
         log::trace!("Engine::search(root, tree, params, limits)");
 
         let start_time = Instant::now();
@@ -136,7 +136,7 @@ impl<'a> Engine<'a> {
     }
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
-    fn do_sesb(root: Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params) {
+    fn do_sesb(root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params) {
         log::trace!("Engine::do_sesb(root, tree, params)");
 
         // select
@@ -183,20 +183,20 @@ impl<'a> Engine<'a> {
     /// Descends the tree, selecting the best node at each step.
     /// Returns the index of a node, and the index of the edge to be expanded.
     fn select(
-        root: Board<BOARD_SIZE>,
+        root: &Board<BOARD_SIZE>,
         tree: &mut [Node],
         params: &Params,
         mut node_idx: usize,
     ) -> SelectionResult {
         log::trace!("Engine::select(root, tree, params, node_idx = {node_idx})");
 
-        let mut pos = root;
+        let mut pos = *root;
         loop {
             // if the node has had a single visit, expand it
             // here, "expand" means adding all the legal moves to the node
             // with corresponding policy probabilities.
             if tree[node_idx].visits() == 1 {
-                tree[node_idx].expand(pos);
+                tree[node_idx].expand(&pos);
             }
 
             // if the node is terminal, return it
@@ -233,9 +233,9 @@ impl<'a> Engine<'a> {
     }
 
     /// Prints out the current line of best play.
-    pub fn print_pv(root: Board<BOARD_SIZE>, tree: &[Node], params: &Params) {
+    pub fn print_pv(root: &Board<BOARD_SIZE>, tree: &[Node], params: &Params) {
         let mut node_idx = Handle::from_index(0, tree);
-        let mut pos = root;
+        let mut pos = *root;
         while !node_idx.is_null() {
             if tree[node_idx.index()].edges().is_none() {
                 break;

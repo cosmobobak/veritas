@@ -3,9 +3,9 @@ use gomokugen::board::{Board, Move, Player};
 use crate::BOARD_SIZE;
 
 /// Perform a rollout from the given state, returning the reward.
-pub fn rollout(state: Board<BOARD_SIZE>) -> f32 {
+pub fn rollout(state: &Board<BOARD_SIZE>) -> f32 {
     let to_move = state.turn();
-    let mut state = state;
+    let mut state = *state;
     let mut rng = fastrand::Rng::new();
 
     let outcome = loop {
