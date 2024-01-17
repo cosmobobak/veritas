@@ -572,6 +572,7 @@ dependencies = [
  "gomokugen",
  "kn-graph",
  "log",
+ "smallvec",
 ]
 
 [[package]]
