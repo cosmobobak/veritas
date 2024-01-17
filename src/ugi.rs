@@ -128,7 +128,7 @@ pub fn main_loop() {
             }
             unknown => println!("info string unknown command: {unknown}"),
         }
-        
+
         if QUIT.load(Ordering::SeqCst) {
             break;
         }

@@ -1,9 +1,9 @@
-use std::{time::Instant, sync::atomic::Ordering};
+use std::{sync::atomic::Ordering, time::Instant};
 
 use gomokugen::board::{Board, Move, Player};
 use log::debug;
 
-use crate::{arena::Handle, node::Node, params::Params, timemgmt::Limits, BOARD_SIZE, ugi};
+use crate::{arena::Handle, node::Node, params::Params, timemgmt::Limits, ugi, BOARD_SIZE};
 
 pub struct SearchResults {
     /// The best move found.
@@ -113,16 +113,17 @@ impl<'a> Engine<'a> {
                 Self::print_pv(root, tree, params);
                 elapsed =
                     u64::try_from(start_time.elapsed().as_millis()).expect("elapsed time overflow");
-                stopped_by_stdin = if let Some(Ok(cmd)) = params.stdin_rx.map(|m| m.lock().unwrap().try_recv()) {
-                    let cmd = cmd.trim();
-                    if cmd == "quit" {
-                        ugi::QUIT.store(true, Ordering::SeqCst);
-                    }
-                    debug!("received command: {}", cmd);
-                    true
-                } else {
-                    false
-                };
+                stopped_by_stdin =
+                    if let Some(Ok(cmd)) = params.stdin_rx.map(|m| m.lock().unwrap().try_recv()) {
+                        let cmd = cmd.trim();
+                        if cmd == "quit" {
+                            ugi::QUIT.store(true, Ordering::SeqCst);
+                        }
+                        debug!("received command: {}", cmd);
+                        true
+                    } else {
+                        false
+                    };
             }
             // update nodes searched
             nodes_searched += 1;
