@@ -29,6 +29,9 @@ pub struct Engine<'a> {
     root: Board<BOARD_SIZE>,
     /// The policy network.
     nn_policy: &'a Graph,
+    /// A CUDA executor.
+    #[cfg(feature = "cuda")]
+    cuda_executor: Option<&'a CudaExecutor>,
 }
 
 enum SelectionResult {
