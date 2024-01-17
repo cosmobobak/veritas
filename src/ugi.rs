@@ -5,7 +5,7 @@ use std::sync::{
     mpsc, Mutex,
 };
 
-use gomokugen::board::Board;
+use gomokugen::board::{Board, Player};
 use kn_graph::optimizer::OptimizerSettings;
 use log::info;
 
@@ -100,6 +100,27 @@ pub fn main_loop() {
                 println!("id author Cosmo");
                 println!("ugiok");
             }
+            query if query.starts_with("query ") => match query.trim_start_matches("query ").trim()
+            {
+                "gameover" => {
+                    println!("response {}", engine.root().outcome().is_some());
+                }
+                "p1turn" => {
+                    println!("response {}", engine.root().turn() == Player::X);
+                }
+                "result" => {
+                    println!(
+                        "response {}",
+                        match engine.root().outcome() {
+                            Some(Player::X) => "p1win",
+                            Some(Player::O) => "p2win",
+                            Some(Player::None) => "draw",
+                            None => "none",
+                        }
+                    );
+                }
+                _ => println!("response unknown query: {query}"),
+            },
             "show" => {
                 println!("info string position fen {}", engine.root().fen());
             }
