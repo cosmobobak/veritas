@@ -1,6 +1,7 @@
 use std::time::Instant;
 
-use gomokugen::board::{Move, Board};
+use gomokugen::board::{Move, Board, Player};
+use log::debug;
 
 use crate::{node::Node, params::Params, timemgmt::Limits, arena::Handle, BOARD_SIZE};
 
@@ -23,6 +24,18 @@ pub struct Engine {
     root: Board<BOARD_SIZE>,
 }
 
+enum SelectionResult {
+    NonTerminal {
+        node_index: usize,
+        edge_index: usize,
+        board_state: Board<BOARD_SIZE>,
+    },
+    Terminal {
+        node_index: usize,
+        board_state: Board<BOARD_SIZE>,
+    },
+}
+
 impl Engine {
     /// Creates a new engine.
     pub const fn new(params: Params, limits: Limits, root: Board<BOARD_SIZE>) -> Self {
@@ -38,9 +51,20 @@ impl Engine {
         &self.tree
     }
 
+    pub const fn root(&self) -> Board<BOARD_SIZE> {
+        self.root
+    }
+
     /// Sets the limits on the search.
     pub fn set_limits(&mut self, limits: Limits) {
         self.limits = limits;
+    }
+
+    /// Sets the position to search from.
+    /// This clears the search tree, but could in future be altered to retain some subtree.
+    pub fn set_position(&mut self, root: Board<BOARD_SIZE>) {
+        self.root = root;
+        self.tree.clear();
     }
 
     /// Runs the engine.
@@ -55,7 +79,7 @@ impl Engine {
 
         let root_dist = self.tree[0].dist(&self.tree);
 
-        println!("{:?}", self.tree[0]);
+        // println!("{:?}", self.tree[0]);
 
         SearchResults {
             best_move,
@@ -82,8 +106,8 @@ impl Engine {
             Self::do_sesb(root, tree, params);
 
             // update elapsed time and print stats
-            if nodes_searched % 256 == 0 {
-                print!("info nodes {} time {} score cp {} pv", nodes_searched, elapsed, tree[0].winrate() * 100.0);
+            if nodes_searched % 1024 == 0 {
+                print!("info nodes {} time {} score q {:.1} pv", nodes_searched, elapsed, tree[0].winrate() * 100.0);
                 Self::print_pv(root, tree, params);
                 elapsed = u64::try_from(start_time.elapsed().as_millis()).expect("elapsed time overflow");
             }
@@ -99,21 +123,36 @@ impl Engine {
         log::trace!("Engine::do_sesb(root, tree, params)");
 
         // select
-        let (best_node, edge_to_expand, board_state) = Self::select(root, tree, params, 0);
+        let selection = Self::select(root, tree, params, 0);
 
-        // expand
-        let new_node = Self::expand(tree, params, best_node, edge_to_expand);
+        match selection {
+            SelectionResult::NonTerminal { node_index: best_node, edge_index: edge_to_expand, board_state } => {
+                // expand
+                let new_node = Self::expand(tree, params, best_node, edge_to_expand);
+                
+                // simulate
+                let value = (params.valuator)(&board_state);
 
-        // simulate
-        let value = (params.valuator)(&board_state);
-
-        // backpropagate
-        Self::backpropagate(tree, new_node, value);
+                // backpropagate
+                Self::backpropagate(tree, new_node, value);
+            }
+            SelectionResult::Terminal { node_index: best_node, board_state } => {
+                // if the node is terminal, we don't need to expand it.
+                // we just need to backpropagate the result.
+                let value = match board_state.outcome() {
+                    None => unreachable!("terminal node has no outcome"),
+                    Some(Player::None) => 0.5, // draw
+                    Some(p) => if p == board_state.turn() { 0.0 } else { 1.0 },
+                };
+                let node = Handle::from_index(best_node, tree);
+                Self::backpropagate(tree, node, value);
+            }
+        };
     }
 
     /// Descends the tree, selecting the best node at each step.
     /// Returns the index of a node, and the index of the edge to be expanded.
-    fn select(root: Board<BOARD_SIZE>, tree: &mut [Node], params: &Params, mut node_idx: usize) -> (usize, usize, Board<BOARD_SIZE>) {
+    fn select(root: Board<BOARD_SIZE>, tree: &mut [Node], params: &Params, mut node_idx: usize) -> SelectionResult {
         log::trace!("Engine::select(root, tree, params, node_idx = {node_idx})");
 
         let mut pos = root;
@@ -127,13 +166,14 @@ impl Engine {
 
             // if the node is terminal, return it
             if tree[node_idx].is_terminal() {
-                return (node_idx, usize::MAX, pos);
+                debug!("Engine::select: terminal node reached: index {node_idx}, position {}", pos.fen());
+                return SelectionResult::Terminal { node_index: node_idx, board_state: pos };
             }
 
             let (edge_idx, child_idx) = Self::uct_best(tree, params, node_idx);
             // if the node has no children, return it, because we can't descend any further.
             if child_idx.is_null() {
-                return (node_idx, edge_idx, pos);
+                return SelectionResult::NonTerminal { node_index: node_idx, edge_index: edge_idx, board_state: pos };
             }
 
             // it's *not* unexpanded, so we can descend
@@ -223,8 +263,8 @@ impl Engine {
     }
 
     /// Expands an edge of a given node, returning a handle to the new node.
-    fn expand(tree: &mut Vec<Node>, params: &Params, node_idx: usize, edge_idx: usize) -> Handle {
-        log::trace!("Engine::expand(tree, params, node_idx = {node_idx}, edge_idx = {edge_idx})");
+    fn expand(tree: &mut Vec<Node>, params: &Params, node_idx: usize, edge_index: usize) -> Handle {
+        log::trace!("Engine::expand(tree, params, node_idx = {node_idx}, edge_idx = {edge_index})");
 
         let last_child_of_expanding_node = {
             // get a reference to the last expanded child of the node
@@ -242,7 +282,7 @@ impl Engine {
 
         // allocate a new node
         let parent_handle = Handle::from_index(node_idx, tree);
-        let new_node = Node::new(parent_handle, edge_idx);
+        let new_node = Node::new(parent_handle, edge_index);
 
         // write the new node to the tree
         tree.push(new_node);

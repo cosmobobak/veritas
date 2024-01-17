@@ -105,7 +105,7 @@ pub struct Node {
 impl Node {
     /// Creates a new node.
     pub fn new(parent: Handle, edge_index: usize) -> Self {
-        let index = edge_index.try_into().expect("too many edges");
+        let index = edge_index.try_into().unwrap_or_else(|_| panic!("edge index {edge_index} too large"));
         Self {
             wl: 0.0,
             edges: None,

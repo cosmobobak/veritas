@@ -1,6 +1,9 @@
+//! The Universal Game Interface (UGI) implementation.
+
 use std::sync::{atomic::{AtomicBool, Ordering}, mpsc};
 
 use gomokugen::board::Board;
+use log::info;
 
 use crate::{NAME, VERSION, timemgmt::Limits, engine::{Engine, SearchResults}, params::Params};
 
@@ -72,6 +75,9 @@ pub fn main_loop() {
                 println!("id author Cosmo");
                 println!("ugiok");
             }
+            "show" => {
+                println!("info string position fen {}", engine.root().fen());
+            }
             go if go.starts_with("go") => {
                 let limits: Limits = if let Ok(limits) = go.trim_start_matches("go").trim().parse() {
                     limits
@@ -81,7 +87,23 @@ pub fn main_loop() {
                 };
                 engine.set_limits(limits);
                 let SearchResults { best_move, root_dist } = engine.go();
+                info!("best move from search: {}", best_move);
+                info!("root rollout distribution: {:?}", root_dist);
                 println!("bestmove {best_move}");
+            }
+            "stop" => {
+                // engine.stop();
+            }
+            set_position if set_position.starts_with("position fen ") => {
+                let fen = set_position.trim_start_matches("position fen ").trim();
+                let board = match fen.parse() {
+                    Ok(board) => board,
+                    Err(e) => {
+                        println!("info string invalid fen \"{fen}\": {e}");
+                        continue;
+                    }
+                };
+                engine.set_position(board);
             }
             unknown => println!("info string unknown command: {unknown}"),
         }
