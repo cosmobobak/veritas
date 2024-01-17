@@ -14,7 +14,7 @@ pub struct Params<'a> {
 impl Default for Params<'_> {
     fn default() -> Self {
         Self {
-            c_puct: 10.41,
+            c_puct: 5.0,
             valuator: Box::new(|b| game::rollout(b).into()),
             stdin_rx: None,
         }

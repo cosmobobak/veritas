@@ -237,8 +237,12 @@ impl Node {
     /// Expands this node, adding the legal moves and their policies.
     pub fn expand(&mut self, &pos: &Board<BOARD_SIZE>, policy: &[f32]) {
         let mut moves = Vec::with_capacity(BOARD_SIZE * BOARD_SIZE);
+        let mut max_logit = -1000.0;
         pos.generate_moves(|m| {
             let logit = policy[m.index()];
+            if logit > max_logit {
+                max_logit = logit;
+            }
             moves.push(Edge {
                 pov_move: m,
                 probability: logit,
@@ -246,18 +250,11 @@ impl Node {
             false
         });
         // normalize the probabilities
-        let mut max = -1000.0;
-        // find the maximum probability
-        for edge in &moves {
-            if edge.probability > max {
-                max = edge.probability;
-            }
-        }
         // subtract the maximum probability from all probabilities
         // and exponentiate them, summing them as we go.
         let mut total = 0.0;
         for edge in &mut moves {
-            edge.probability = (edge.probability - max).exp();
+            edge.probability = (edge.probability - max_logit).exp();
             total += edge.probability;
         }
         // divide each probability by the total to normalize them

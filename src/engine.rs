@@ -90,8 +90,9 @@ impl<'a> Engine<'a> {
         // inputs are a 162 1-D element vector
         let mut tensor = Tensor::zeros(IxDyn(&[batch_size, 162]));
         // set the input data from the board state
+        let to_move = board.turn();
         board.feature_map(|i, c| {
-            let index = i + usize::from(c == Player::O) * 81;
+            let index = i + usize::from(c != to_move) * 81;
             tensor[[0, index]] = 1.0;
         });
         let inputs = [DTensor::F32(tensor)];
@@ -291,12 +292,12 @@ impl<'a> Engine<'a> {
 
         let exploration_factor = params.c_puct * f64::from(node.visits()).sqrt();
 
-        let _first_play_urgency = if node.visits() > 0 {
+        let first_play_urgency = if node.visits() > 0 {
             1.0 - node.winrate()
         } else {
             0.5
         };
-        let first_play_urgency = f64::INFINITY;
+        // let first_play_urgency = f64::INFINITY;
 
         let mut best_idx = 0;
         let mut best_value = f64::NEG_INFINITY;
