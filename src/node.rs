@@ -1,4 +1,4 @@
-use gomokugen::board::{Move, Board, Player};
+use gomokugen::board::{Board, Move, Player};
 
 use crate::{arena::Handle, BOARD_SIZE};
 
@@ -32,6 +32,7 @@ enum GameResult {
 }
 
 impl Edge {
+    #[allow(dead_code)]
     pub fn from_movelist(moves: &[Move<BOARD_SIZE>]) -> Box<[Self]> {
         #![allow(clippy::cast_precision_loss)]
         let mut edges = Vec::new();
@@ -47,7 +48,7 @@ impl Edge {
 
     // Returns move from the point of view of the player making it (if as_opponent
     // is false) or as opponent (if as_opponent is true).
-    pub const fn get_move(&self, as_opponent: bool) -> Move<BOARD_SIZE> {
+    pub const fn get_move(self, as_opponent: bool) -> Move<BOARD_SIZE> {
         if as_opponent {
             todo!()
         } else {
@@ -55,10 +56,11 @@ impl Edge {
         }
     }
 
-    pub const fn probability(&self) -> f64 {
+    pub const fn probability(self) -> f64 {
         self.probability as f64
     }
 
+    #[allow(dead_code)]
     pub fn set_probability(&mut self, probability: f32) {
         // TODO: check that probability is in [0, 1].
         self.probability = probability;
@@ -83,13 +85,13 @@ pub struct Node {
     /// Index to a next sibling. Null if there are no more siblings.
     sibling: Handle,
     /// Averaged draw probability. Not flipped.
-    draw_probability: f32,
+    // draw_probability: f32,
     /// Estimated remaining plies until the end of the game.
-    remaining: f32,
+    // remaining: f32,
     /// Number of completed visits to this node.
     visits: u32,
     /// How many threads are currently visiting this node.
-    num_in_flight: u32,
+    // num_in_flight: u32,
     /// Index of this node in the parent's edge list.
     index: u16,
 
@@ -105,17 +107,19 @@ pub struct Node {
 impl Node {
     /// Creates a new node.
     pub fn new(parent: Handle, edge_index: usize) -> Self {
-        let index = edge_index.try_into().unwrap_or_else(|_| panic!("edge index {edge_index} too large"));
+        let index = edge_index
+            .try_into()
+            .unwrap_or_else(|_| panic!("edge index {edge_index} too large"));
         Self {
             wl: 0.0,
             edges: None,
             parent,
             child: Handle::null(),
             sibling: Handle::null(),
-            draw_probability: 0.0,
-            remaining: 0.0,
+            // draw_probability: 0.0,
+            // remaining: 0.0,
             visits: 0,
-            num_in_flight: 0,
+            // num_in_flight: 0,
             index,
             terminal_type: Terminal::NonTerminal,
             upper_bound: GameResult::Ongoing,
@@ -140,7 +144,8 @@ impl Node {
                 // 1. look up the node in the tree using the index
                 // 2. get the index of the node's inbound edge in our edge list
                 // 3. look up that index in our edge list.
-                best_move = Some(self.edges().unwrap()[tree[edge.index()].edge_index()].get_move(false));
+                best_move =
+                    Some(self.edges().unwrap()[tree[edge.index()].edge_index()].get_move(false));
                 best_visits = i64::from(visits);
             }
             edge = tree[edge.index()].sibling;
@@ -206,7 +211,7 @@ impl Node {
     }
 
     /// Returns the parent of the node.
-    pub const fn non_null_parent(&self, tree: &[Self]) -> Option<Handle> {
+    pub const fn non_null_parent(&self, _tree: &[Self]) -> Option<Handle> {
         if self.parent.is_null() {
             None
         } else {
@@ -217,6 +222,7 @@ impl Node {
     /// Expands this node, adding the legal moves and their policies.
     pub fn expand(&mut self, pos: Board<BOARD_SIZE>) {
         fn policy(_m: Move<BOARD_SIZE>) -> f32 {
+            #![allow(clippy::cast_precision_loss)]
             1.0 / (BOARD_SIZE.pow(2)) as f32
         }
 
@@ -249,6 +255,7 @@ impl Node {
     }
 }
 
+#[allow(dead_code)]
 pub fn print_tree(root: usize, tree: &[Node]) {
     let mut stack = vec![Handle::from_index(root, tree)];
     while let Some(node) = stack.pop() {
