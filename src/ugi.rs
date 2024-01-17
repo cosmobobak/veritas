@@ -1,9 +1,9 @@
 //! The Universal Game Interface (UGI) implementation.
 
-use std::sync::{
+use std::{sync::{
     atomic::{AtomicBool, Ordering},
     mpsc, Mutex,
-};
+}, ops::ControlFlow};
 
 use gomokugen::board::{Board, Player};
 use kn_graph::optimizer::OptimizerSettings;
@@ -144,16 +144,10 @@ pub fn main_loop() {
             "stop" => {
                 // engine.stop();
             }
-            set_position if set_position.starts_with("position fen ") => {
-                let fen = set_position.trim_start_matches("position fen ").trim();
-                let board = match fen.parse() {
-                    Ok(board) => board,
-                    Err(e) => {
-                        println!("info string invalid fen \"{fen}\": {e}");
-                        continue;
-                    }
-                };
-                engine.set_position(&board);
+            set_position if set_position.starts_with("position ") => {
+                if parse_position(set_position, &mut engine) == ControlFlow::Break(()) {
+                    continue;
+                }
             }
             unknown => println!("info string unknown command: {unknown}"),
         }
@@ -164,4 +158,44 @@ pub fn main_loop() {
     }
 
     STDIN_READER_THREAD_KEEP_RUNNING.store(false, Ordering::SeqCst);
+}
+
+fn parse_position(set_position: &str, engine: &mut Engine<'_>) -> ControlFlow<()> {
+    let (board_part, moves_part) = set_position
+        .trim_start_matches("position ")
+        .trim()
+        .split_once("moves")
+        .map_or_else(
+            || (set_position.trim_start_matches("position ").trim(), ""),
+            |(board_part, moves_part)| (board_part.trim(), moves_part.trim()),
+        );
+    let mut board = match board_part {
+        "startpos" => Board::new(),
+        fen if fen.starts_with("fen ") => {
+            match fen.trim_start_matches("fen ").trim().parse() {
+                Ok(board) => board,
+                Err(e) => {
+                    println!("info string invalid fen \"{fen}\": {e}");
+                    return ControlFlow::Break(());
+                }
+            }
+        }
+        _ => {
+            println!("info string invalid position command");
+            return ControlFlow::Break(());
+        }
+    };
+    for mv in moves_part.split_ascii_whitespace() {
+        match mv.parse() {
+            Ok(mv) => {
+                board.make_move(mv);
+            }
+            Err(e) => {
+                println!("info string invalid move \"{mv}\": {e}");
+                continue;
+            }
+        }
+    }
+    engine.set_position(&board);
+    ControlFlow::Continue(())
 }
