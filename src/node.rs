@@ -155,10 +155,14 @@ impl Node {
 
     /// Returns the distribution of visits to the children of this node.
     pub fn dist(&self, tree: &[Self]) -> Vec<u64> {
-        let mut dist = Vec::with_capacity(self.edges.as_ref().unwrap().len());
+        let mut dist = vec![0; BOARD_SIZE * BOARD_SIZE];
         let mut edge = self.child;
         while !edge.is_null() {
-            dist.push(u64::from(tree[edge.index()].visits));
+            let move_index = self.edges.as_ref().unwrap()[tree[edge.index()].edge_index()]
+                .get_move(false)
+                .index();
+            let visits = u64::from(tree[edge.index()].visits);
+            dist[move_index] = visits;
             edge = tree[edge.index()].sibling;
         }
         dist

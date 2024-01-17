@@ -1,4 +1,4 @@
-use std::{sync::atomic::Ordering, time::Instant};
+use std::{io::Write, sync::atomic::Ordering, time::Instant};
 
 use gomokugen::board::{Board, Move, Player};
 use log::debug;
@@ -69,13 +69,9 @@ impl<'a> Engine<'a> {
 
         Self::search(&self.root, &mut self.tree, &self.params, &self.limits);
 
-        // node::print_tree(0, &self.tree);
-
         let best_move = self.tree[0].best_move(&self.tree);
 
         let root_dist = self.tree[0].dist(&self.tree);
-
-        // println!("{:?}", self.tree[0]);
 
         SearchResults {
             best_move,
@@ -96,6 +92,8 @@ impl<'a> Engine<'a> {
             tree.push(Node::new(Handle::null(), 0));
             tree[0].expand(root);
         }
+
+        let mut log = std::io::BufWriter::new(std::fs::File::create("log.txt").unwrap());
 
         let mut stopped_by_stdin = false;
         while !limits.is_out_of_time(nodes_searched, elapsed) && !stopped_by_stdin {
@@ -124,6 +122,12 @@ impl<'a> Engine<'a> {
                     } else {
                         false
                     };
+                // write the root rollout distribution to log.txt
+                let root_dist = tree[0].dist(tree);
+                for visit_count in root_dist {
+                    write!(log, "{visit_count},").unwrap();
+                }
+                writeln!(log).unwrap();
             }
             // update nodes searched
             nodes_searched += 1;
