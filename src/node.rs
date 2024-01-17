@@ -32,31 +32,6 @@ enum GameResult {
 }
 
 impl Edge {
-    pub fn new(m: Move<BOARD_SIZE>, p: f32) -> Self {
-        assert!(
-            (0.0..=1.0).contains(&p),
-            "got an illegal move probability - p({m}) = {p} but should be in [0, 1]!"
-        );
-        Self {
-            pov_move: m,
-            probability: p,
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn from_movelist(moves: &[Move<BOARD_SIZE>]) -> Box<[Self]> {
-        #![allow(clippy::cast_precision_loss)]
-        let mut edges = Vec::new();
-        edges.reserve_exact(moves.len());
-        for &m in moves {
-            edges.push(Self {
-                pov_move: m,
-                probability: 1.0 / moves.len() as f32,
-            });
-        }
-        edges.into_boxed_slice()
-    }
-
     // Returns move from the point of view of the player making it (if as_opponent
     // is false) or as opponent (if as_opponent is true).
     pub const fn get_move(self, as_opponent: bool) -> Move<BOARD_SIZE> {
@@ -69,12 +44,6 @@ impl Edge {
 
     pub const fn probability(self) -> f64 {
         self.probability as f64
-    }
-
-    #[allow(dead_code)]
-    pub fn set_probability(&mut self, probability: f32) {
-        // TODO: check that probability is in [0, 1].
-        self.probability = probability;
     }
 }
 
@@ -285,30 +254,5 @@ impl Node {
     /// Whether this node is terminal.
     pub fn is_terminal(&self) -> bool {
         self.terminal_type == Terminal::Terminal
-    }
-}
-
-#[allow(dead_code)]
-pub fn print_tree(root: usize, tree: &[Node]) {
-    let mut stack = vec![Handle::from_index(root, tree)];
-    while let Some(node) = stack.pop() {
-        let node = &tree[node.index()];
-        println!(
-            "Node from move {} (parent {:?}, child {:?}, sibling {:?})",
-            node.index, node.parent, node.child, node.sibling
-        );
-        if let Some(edges) = node.edges() {
-            print!("  Edges: [");
-            for edge in edges {
-                print!("{edge:?}, ");
-            }
-            println!("]");
-        }
-        if !node.child.is_null() {
-            stack.push(node.child);
-        }
-        if !node.sibling.is_null() {
-            stack.push(node.sibling);
-        }
     }
 }

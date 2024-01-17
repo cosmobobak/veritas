@@ -1,7 +1,11 @@
 use std::{io::Write, sync::atomic::Ordering, time::Instant};
 
 use gomokugen::board::{Board, Move, Player};
-use kn_graph::{graph::Graph, dtype::{Tensor, DTensor}, ndarray::IxDyn};
+use kn_graph::{
+    dtype::{DTensor, Tensor},
+    graph::Graph,
+    ndarray::IxDyn,
+};
 use log::debug;
 
 use crate::{arena::Handle, node::Node, params::Params, timemgmt::Limits, ugi, BOARD_SIZE};
@@ -41,7 +45,12 @@ enum SelectionResult {
 
 impl<'a> Engine<'a> {
     /// Creates a new engine.
-    pub const fn new(params: Params<'a>, limits: Limits, root: &Board<BOARD_SIZE>, nn_policy: &'a Graph) -> Self {
+    pub const fn new(
+        params: Params<'a>,
+        limits: Limits,
+        root: &Board<BOARD_SIZE>,
+        nn_policy: &'a Graph,
+    ) -> Self {
         Self {
             params,
             limits,
@@ -71,7 +80,13 @@ impl<'a> Engine<'a> {
     pub fn go(&mut self) -> SearchResults {
         log::trace!("Engine::go()");
 
-        Self::search(&self.root, &mut self.tree, &self.params, &self.limits, self.nn_policy);
+        Self::search(
+            &self.root,
+            &mut self.tree,
+            &self.params,
+            &self.limits,
+            self.nn_policy,
+        );
 
         let best_move = self.tree[0].best_move(&self.tree);
 
@@ -102,11 +117,22 @@ impl<'a> Engine<'a> {
         assert_eq!(tensors.len(), 1);
 
         // get the output as a vector
-        tensors[0].unwrap_f32().unwrap().as_slice().unwrap().to_vec()
+        tensors[0]
+            .unwrap_f32()
+            .unwrap()
+            .as_slice()
+            .unwrap()
+            .to_vec()
     }
 
     /// Repeat the search loop until the time limit is reached.
-    fn search(root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, limits: &Limits, nn_policy: &Graph) {
+    fn search(
+        root: &Board<BOARD_SIZE>,
+        tree: &mut Vec<Node>,
+        params: &Params,
+        limits: &Limits,
+        nn_policy: &Graph,
+    ) {
         log::trace!("Engine::search(root, tree, params, limits)");
 
         let start_time = Instant::now();
