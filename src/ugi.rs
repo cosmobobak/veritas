@@ -6,6 +6,7 @@ use std::sync::{
 };
 
 use gomokugen::board::Board;
+use kn_graph::optimizer::OptimizerSettings;
 use log::info;
 
 use crate::{
@@ -68,10 +69,17 @@ pub fn main_loop() {
     };
     println!("{NAME} {VERSION}{version_extension} by Cosmo");
 
+    // Load an onnx file into a Graph.
+    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./model.onnx", false).unwrap();
+    // Optimise the graph.
+    let graph = kn_graph::optimizer::optimize_graph(&raw_graph, OptimizerSettings::default());
+    // Deallocate the raw graph.
+    std::mem::drop(raw_graph);
+
     let default_params = Params::default().with_stdin_rx(&stdin);
     let default_limits = Limits::default();
     let starting_position = Board::new();
-    let mut engine = Engine::new(default_params, default_limits, &starting_position);
+    let mut engine = Engine::new(default_params, default_limits, &starting_position, &graph);
 
     loop {
         std::io::Write::flush(&mut std::io::stdout()).expect("couldn't flush stdout");

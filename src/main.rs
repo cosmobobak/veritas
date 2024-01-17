@@ -16,7 +16,7 @@ pub static NAME: &str = "Veritas";
 /// The version of the engine.
 pub static VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const BOARD_SIZE: usize = 15;
+const BOARD_SIZE: usize = 9;
 
 fn main() {
     #[cfg(debug_assertions)]

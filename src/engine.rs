@@ -1,6 +1,7 @@
 use std::{io::Write, sync::atomic::Ordering, time::Instant};
 
 use gomokugen::board::{Board, Move, Player};
+use kn_graph::{graph::Graph, dtype::{Tensor, DTensor}, ndarray::IxDyn};
 use log::debug;
 
 use crate::{arena::Handle, node::Node, params::Params, timemgmt::Limits, ugi, BOARD_SIZE};
@@ -22,6 +23,8 @@ pub struct Engine<'a> {
     tree: Vec<Node>,
     /// The root position.
     root: Board<BOARD_SIZE>,
+    /// The policy network.
+    nn_policy: &'a Graph,
 }
 
 enum SelectionResult {
@@ -38,12 +41,13 @@ enum SelectionResult {
 
 impl<'a> Engine<'a> {
     /// Creates a new engine.
-    pub const fn new(params: Params<'a>, limits: Limits, root: &Board<BOARD_SIZE>) -> Self {
+    pub const fn new(params: Params<'a>, limits: Limits, root: &Board<BOARD_SIZE>, nn_policy: &'a Graph) -> Self {
         Self {
             params,
             limits,
             tree: Vec::new(),
             root: *root,
+            nn_policy,
         }
     }
 
@@ -67,7 +71,7 @@ impl<'a> Engine<'a> {
     pub fn go(&mut self) -> SearchResults {
         log::trace!("Engine::go()");
 
-        Self::search(&self.root, &mut self.tree, &self.params, &self.limits);
+        Self::search(&self.root, &mut self.tree, &self.params, &self.limits, self.nn_policy);
 
         let best_move = self.tree[0].best_move(&self.tree);
 
@@ -79,8 +83,29 @@ impl<'a> Engine<'a> {
         }
     }
 
+    /// Evaluates the policy network on a position.
+    fn generate_policy(graph: &kn_graph::graph::Graph, board: &Board<9>) -> Vec<f32> {
+        // build inputs
+        let batch_size = 1;
+        // inputs are a 162 1-D element vector
+        let mut tensor = Tensor::zeros(IxDyn(&[batch_size, 162]));
+        // set the input data from the board state
+        board.feature_map(|i, c| {
+            let index = i + usize::from(c == Player::O) * 81;
+            tensor[[0, index]] = 1.0;
+        });
+        let inputs = [DTensor::F32(tensor)];
+
+        // evaluate the graph on this input
+        let tensors = kn_graph::cpu::cpu_eval_graph(graph, batch_size, &inputs);
+        assert_eq!(tensors.len(), 1);
+
+        // get the output as a vector
+        tensors[0].unwrap_f32().unwrap().as_slice().unwrap().to_vec()
+    }
+
     /// Repeat the search loop until the time limit is reached.
-    fn search(root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, limits: &Limits) {
+    fn search(root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, limits: &Limits, nn_policy: &Graph) {
         log::trace!("Engine::search(root, tree, params, limits)");
 
         let start_time = Instant::now();
@@ -90,7 +115,8 @@ impl<'a> Engine<'a> {
         if tree.is_empty() {
             // create the root node
             tree.push(Node::new(Handle::null(), 0));
-            tree[0].expand(root);
+            let policy = Self::generate_policy(nn_policy, root);
+            tree[0].expand(root, &policy);
         }
 
         let mut log = std::io::BufWriter::new(std::fs::File::create("log.txt").unwrap());
@@ -98,7 +124,7 @@ impl<'a> Engine<'a> {
         let mut stopped_by_stdin = false;
         while !limits.is_out_of_time(nodes_searched, elapsed) && !stopped_by_stdin {
             // perform one iteration of selection, expansion, simulation, and backpropagation
-            Self::do_sesb(root, tree, params);
+            Self::do_sesb(root, tree, params, nn_policy);
 
             // update elapsed time and print stats
             if nodes_searched % 1024 == 0 {
@@ -140,11 +166,11 @@ impl<'a> Engine<'a> {
     }
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
-    fn do_sesb(root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params) {
+    fn do_sesb(root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, nn_policy: &Graph) {
         log::trace!("Engine::do_sesb(root, tree, params)");
 
         // select
-        let selection = Self::select(root, tree, params, 0);
+        let selection = Self::select(root, tree, params, 0, nn_policy);
 
         match selection {
             SelectionResult::NonTerminal {
@@ -191,6 +217,7 @@ impl<'a> Engine<'a> {
         tree: &mut [Node],
         params: &Params,
         mut node_idx: usize,
+        nn_policy: &Graph,
     ) -> SelectionResult {
         log::trace!("Engine::select(root, tree, params, node_idx = {node_idx})");
 
@@ -200,7 +227,8 @@ impl<'a> Engine<'a> {
             // here, "expand" means adding all the legal moves to the node
             // with corresponding policy probabilities.
             if tree[node_idx].visits() == 1 {
-                tree[node_idx].expand(&pos);
+                let policy = Self::generate_policy(nn_policy, &pos);
+                tree[node_idx].expand(&pos, &policy);
             }
 
             // if the node is terminal, return it

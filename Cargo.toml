@@ -16,4 +16,5 @@ authors = ["Cosmo Bobak (cosmobobak@gmail.com)"]
 env_logger = "0.10.1"
 fastrand = "2.0.1"
 gomokugen = { git = "https://github.com/cosmobobak/gomokugen" }
+kn-graph = "0.5.0"
 log = "0.4.20"
