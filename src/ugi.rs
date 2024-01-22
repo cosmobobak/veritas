@@ -59,6 +59,7 @@ fn stdin_reader_worker(sender: mpsc::Sender<String>) {
 }
 
 /// The main loop of the Universal Game Interface (UGI).
+#[allow(clippy::too_many_lines)]
 pub fn main_loop() {
     let stdin = Mutex::new(stdin_reader());
 
@@ -70,13 +71,13 @@ pub fn main_loop() {
     println!("{NAME} {VERSION}{version_extension} by Cosmo");
 
     // Load an onnx file into a Graph.
-    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./model.onnx", false).unwrap();
+    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./model-4.onnx", false).unwrap();
     // Optimise the graph.
     let graph = kn_graph::optimizer::optimize_graph(&raw_graph, OptimizerSettings::default());
     // Deallocate the raw graph.
     std::mem::drop(raw_graph);
 
-    let default_params = Params::default().with_stdin_rx(&stdin);
+    let default_params = Params::default().with_stdin_rx(&stdin).with_stdout(true);
     let default_limits = Limits::default();
     let starting_position = Board::new();
     let mut engine = Engine::new(default_params, default_limits, &starting_position, &graph);
@@ -100,6 +101,19 @@ pub fn main_loop() {
                 println!("id author Cosmo");
                 println!("ugiok");
             }
+            "show" => {
+                println!("info string position fen {}", engine.root().fen());
+                let board_string = engine.root().to_string();
+                let prefixed = board_string
+                    .lines()
+                    .map(|line| format!("info string {line}"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                println!("{prefixed}");
+            }
+            "stop" => {
+                // engine.stop();
+            }
             query if query.starts_with("query ") => match query.trim_start_matches("query ").trim()
             {
                 "gameover" => {
@@ -121,9 +135,6 @@ pub fn main_loop() {
                 }
                 _ => println!("response unknown query: {query}"),
             },
-            "show" => {
-                println!("info string position fen {}", engine.root().fen());
-            }
             go if go.starts_with("go") => {
                 let limits: Limits = if let Ok(limits) = go.trim_start_matches("go").trim().parse()
                 {
@@ -141,12 +152,37 @@ pub fn main_loop() {
                 info!("root rollout distribution: {:?}", root_dist);
                 println!("bestmove {best_move}");
             }
-            "stop" => {
-                // engine.stop();
+            play if play.starts_with("play ") => {
+                if make_move_on_engine(play, &mut engine) == ControlFlow::Break(()) {
+                    continue;
+                }
             }
             set_position if set_position.starts_with("position ") => {
                 if parse_position(set_position, &mut engine) == ControlFlow::Break(()) {
                     continue;
+                }
+            }
+            set_option if set_option.starts_with("setoption ") => {
+                let mut words = set_option.trim_start_matches("setoption ").split_ascii_whitespace();
+                words.next(); // "name"
+                let Ok(name) = words.next().ok_or(()) else {
+                    println!("info string invalid setoption command");
+                    continue;
+                };
+                words.next(); // "value"
+                let Ok(value) = words.next().ok_or(()) else {
+                    println!("info string invalid setoption command");
+                    continue;
+                };
+                match name {
+                    "cpuct" => {
+                        let Ok(cpuct) = value.parse() else {
+                            println!("info string invalid cpuct value");
+                            continue;
+                        };
+                        engine.params_mut().c_puct = cpuct;
+                    }
+                    _ => println!("info string unknown option: {name}"),
                 }
             }
             unknown => println!("info string unknown command: {unknown}"),
@@ -158,6 +194,31 @@ pub fn main_loop() {
     }
 
     STDIN_READER_THREAD_KEEP_RUNNING.store(false, Ordering::SeqCst);
+}
+
+fn make_move_on_engine(play: &str, engine: &mut Engine<'_>) -> ControlFlow<()> {
+    let mv = match play.trim_start_matches("play ").trim().parse() {
+        Ok(mv) => mv,
+        Err(e) => {
+            println!("info string invalid move \"{play}\": {e}");
+            return ControlFlow::Break(());
+        }
+    };
+    let mut root = engine.root();
+    let mut move_legal = false;
+    root.generate_moves(|legal_mv| {
+        if legal_mv == mv {
+            move_legal = true;
+        };
+        move_legal
+    });
+    if !move_legal {
+        println!("info string illegal move \"{mv}\"");
+        return ControlFlow::Break(());
+    }
+    root.make_move(mv);
+    engine.set_position(&root);
+    ControlFlow::Continue(())
 }
 
 fn parse_position(set_position: &str, engine: &mut Engine<'_>) -> ControlFlow<()> {

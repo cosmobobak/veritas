@@ -11,6 +11,7 @@ mod node;
 mod params;
 mod timemgmt;
 mod ugi;
+mod datagen;
 
 /// The name of the engine.
 pub static NAME: &str = "Veritas";
@@ -30,5 +31,13 @@ fn main() {
         return ugi::main_loop();
     }
 
-    unimplemented!();
+    let args: Vec<_> = std::env::args_os().collect();
+
+    match args[1].to_str().unwrap() {
+        "datagen" => {
+            let time_allocated_millis = args[2].to_str().unwrap().parse().unwrap();
+            datagen::run_data_generation(time_allocated_millis);
+        }
+        _ => panic!("unknown subcommand"),
+    }
 }

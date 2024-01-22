@@ -110,7 +110,7 @@ impl Node {
         }
     }
 
-    /// Returns the move with the most visits.
+    /// Returns the move with the most visits, tie-broken by policy.
     pub fn best_move(&self, tree: &[Self]) -> Move<BOARD_SIZE> {
         log::trace!("Node::best_move(self, tree) (self.index = {})", self.index);
 
