@@ -1,0 +1,48 @@
+{
+    "games": 200,
+    "concurrency": 8,
+    "ratinginterval": 5,
+    "verbose": false,
+    "debug": false,
+    "recover": false,
+    "tournament": "roundrobin",
+    "openings": {
+        "path": "./d2-9x9-openings.txt",
+        "repeat": true,
+        "shuffle": false
+    },
+    "protocol": {
+        "askturn": true
+    },
+    "timecontrol": {
+        "type": "nodes",
+        "time": 8000,
+        "increment": 80,
+        "nodes": 800
+    },
+    "sprt": {
+        "enabled": false,
+        "elo0": 0.0,
+        "elo1": 5.0,
+        "confidence": 0.95
+    },
+    "pgn": {
+        "enabled": true,
+        "verbose": true,
+        "override": false,
+        "colour1": "X",
+        "colour2": "O",
+        "path": "games.pgn",
+        "event": "new net test"
+    },
+    "engines": [
+        {
+            "name": "net 4",
+            "path": "./nn-fixed"
+        },
+        {
+            "name": "net 1",
+            "path": "./nn-new"
+        }
+    ]
+}

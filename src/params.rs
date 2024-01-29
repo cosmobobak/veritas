@@ -9,14 +9,17 @@ pub struct Params<'a> {
     pub valuator: Box<dyn Fn(&Board<BOARD_SIZE>) -> f64>,
     /// A handle to a receiver for stdin.
     pub stdin_rx: Option<&'a Mutex<mpsc::Receiver<String>>>,
+    /// Whether to print search info.
+    pub do_stdout: bool,
 }
 
 impl Default for Params<'_> {
     fn default() -> Self {
         Self {
-            c_puct: 5.0,
+            c_puct: 5.00,
             valuator: Box::new(|b| game::rollout(b).into()),
             stdin_rx: None,
+            do_stdout: false,
         }
     }
 }
@@ -27,5 +30,9 @@ impl<'a> Params<'a> {
             stdin_rx: Some(stdin_rx),
             ..self
         }
+    }
+
+    pub fn with_stdout(self, do_stdout: bool) -> Self {
+        Self { do_stdout, ..self }
     }
 }

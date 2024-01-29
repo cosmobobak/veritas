@@ -1,4 +1,4 @@
-use std::{io::Write, sync::atomic::Ordering, time::Instant};
+use std::{sync::atomic::Ordering, time::Instant};
 
 use gomokugen::board::{Board, Move, Player};
 use kn_graph::{
@@ -6,7 +6,7 @@ use kn_graph::{
     graph::Graph,
     ndarray::IxDyn,
 };
-use log::debug;
+use log::{trace, debug};
 
 use crate::{arena::Handle, node::Node, params::Params, timemgmt::Limits, ugi, BOARD_SIZE};
 
@@ -72,6 +72,11 @@ impl<'a> Engine<'a> {
         self.limits = limits;
     }
 
+    /// Get access to the parameters of the search.
+    pub fn params_mut(&mut self) -> &mut Params<'a> {
+        &mut self.params
+    }
+
     /// Sets the position to search from.
     /// This clears the search tree, but could in future be altered to retain some subtree.
     pub fn set_position(&mut self, root: &Board<BOARD_SIZE>) {
@@ -81,7 +86,7 @@ impl<'a> Engine<'a> {
 
     /// Runs the engine.
     pub fn go(&mut self) -> SearchResults {
-        log::trace!("Engine::go()");
+        trace!("Engine::go()");
 
         Self::search(
             &self.root,
@@ -103,6 +108,7 @@ impl<'a> Engine<'a> {
 
     /// Evaluates the policy network on a position.
     fn generate_policy(graph: &kn_graph::graph::Graph, board: &Board<9>) -> Vec<f32> {
+        // return vec![1.0; BOARD_SIZE.pow(2)];
         // build inputs
         let batch_size = 1;
         // inputs are a 162 1-D element vector
@@ -136,7 +142,7 @@ impl<'a> Engine<'a> {
         limits: &Limits,
         nn_policy: &Graph,
     ) {
-        log::trace!("Engine::search(root, tree, params, limits)");
+        trace!("Engine::search(root, tree, params, limits)");
 
         let start_time = Instant::now();
         let mut nodes_searched = 0;
@@ -149,7 +155,7 @@ impl<'a> Engine<'a> {
             tree[0].expand(root, &policy);
         }
 
-        let mut log = std::io::BufWriter::new(std::fs::File::create("log.txt").unwrap());
+        // let mut log = std::io::BufWriter::new(std::fs::File::create("log.txt").unwrap());
 
         let mut stopped_by_stdin = false;
         while !limits.is_out_of_time(nodes_searched, elapsed) && !stopped_by_stdin {
@@ -158,13 +164,15 @@ impl<'a> Engine<'a> {
 
             // update elapsed time and print stats
             if nodes_searched % 1024 == 0 {
-                print!(
-                    "info nodes {} time {} score q {:.1} pv",
-                    nodes_searched,
-                    elapsed,
-                    tree[0].winrate() * 100.0
-                );
-                Self::print_pv(root, tree, params);
+                if params.do_stdout {
+                    print!(
+                        "info nodes {} time {} score q {:.1} pv",
+                        nodes_searched,
+                        elapsed,
+                        tree[0].winrate() * 100.0
+                    );
+                    Self::print_pv(root, tree, params);
+                }
                 elapsed =
                     u64::try_from(start_time.elapsed().as_millis()).expect("elapsed time overflow");
                 stopped_by_stdin =
@@ -179,17 +187,17 @@ impl<'a> Engine<'a> {
                         false
                     };
                 // write the root rollout distribution to log.txt
-                let root_dist = tree[0].dist(tree);
-                for visit_count in root_dist {
-                    write!(log, "{visit_count},").unwrap();
-                }
-                writeln!(log).unwrap();
+                // let root_dist = tree[0].dist(tree);
+                // for visit_count in root_dist {
+                //     write!(log, "{visit_count},").unwrap();
+                // }
+                // writeln!(log).unwrap();
             }
             // update nodes searched
             nodes_searched += 1;
         }
 
-        log::trace!(
+        trace!(
             "Engine::search: finished search loop with {} entries in tree.",
             tree.len()
         );
@@ -197,7 +205,7 @@ impl<'a> Engine<'a> {
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
     fn do_sesb(root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, nn_policy: &Graph) {
-        log::trace!("Engine::do_sesb(root, tree, params)");
+        trace!("Engine::do_sesb(root, tree, params)");
 
         // select
         let selection = Self::select(root, tree, params, 0, nn_policy);
@@ -249,7 +257,7 @@ impl<'a> Engine<'a> {
         mut node_idx: usize,
         nn_policy: &Graph,
     ) -> SelectionResult {
-        log::trace!("Engine::select(root, tree, params, node_idx = {node_idx})");
+        trace!("Engine::select(root, tree, params, node_idx = {node_idx})");
 
         let mut pos = *root;
         loop {
@@ -284,7 +292,7 @@ impl<'a> Engine<'a> {
             }
 
             // it's *not* unexpanded, so we can descend
-            log::trace!("Engine::select: descending to child {}", child_idx.index());
+            trace!("Engine::select: descending to child {}", child_idx.index());
             let edge = &tree[node_idx].edges().unwrap()[edge_idx];
             let mv = edge.get_move(false);
             pos.make_move(mv);
@@ -315,18 +323,18 @@ impl<'a> Engine<'a> {
     /// Selects the best immediate edge of a node according to UCT.
     /// Returns the index of the edge, and a nullable handle to the child.
     fn uct_best(tree: &[Node], params: &Params, node_idx: usize) -> (usize, Handle) {
-        log::trace!("Engine::uct_best(tree, params, node_idx = {node_idx})");
+        trace!("Engine::uct_best(tree, params, node_idx = {node_idx})");
 
         let node = &tree[node_idx];
 
-        let exploration_factor = params.c_puct * f64::from(node.visits()).sqrt();
+        let exploration_factor = params.c_puct * f64::from(node.visits() + 1).sqrt();
+        trace!(" [uct_best] exploration_factor = {exploration_factor}");
 
         let first_play_urgency = if node.visits() > 0 {
             1.0 - node.winrate()
         } else {
             0.5
         };
-        // let first_play_urgency = f64::INFINITY;
 
         let mut best_idx = 0;
         let mut best_value = f64::NEG_INFINITY;
@@ -351,6 +359,7 @@ impl<'a> Engine<'a> {
         }
         for (idx, value) in values.into_iter().take(edges.len()).enumerate() {
             if let Some((handle, value)) = value {
+                trace!(" [expanded] edge = {idx}, value = {value}");
                 if value > best_value {
                     best_idx = idx;
                     best_value = value;
@@ -359,6 +368,7 @@ impl<'a> Engine<'a> {
             } else {
                 let value =
                     exploration_factor.mul_add(edges[idx].probability(), first_play_urgency);
+                trace!(" [dangling] edge = {idx}, value = {value}, fpu = {first_play_urgency}, p(edge) = {}", edges[idx].probability());
                 if value > best_value {
                     best_idx = idx;
                     best_value = value;
@@ -377,7 +387,7 @@ impl<'a> Engine<'a> {
         node_idx: usize,
         edge_index: usize,
     ) -> Handle {
-        log::trace!("Engine::expand(tree, params, node_idx = {node_idx}, edge_idx = {edge_index})");
+        trace!("Engine::expand(tree, params, node_idx = {node_idx}, edge_idx = {edge_index})");
 
         let last_child_of_expanding_node = {
             // get a reference to the last expanded child of the node
@@ -420,7 +430,7 @@ impl<'a> Engine<'a> {
 
     /// Backpropagates the value up the tree.
     fn backpropagate(tree: &mut [Node], mut node: Handle, mut value: f64) {
-        log::trace!("Engine::backpropagate(tree, node, value)");
+        trace!("Engine::backpropagate(tree, node, value)");
 
         // backpropagate the value up the tree
         tree[node.index()].add_visit(value);
