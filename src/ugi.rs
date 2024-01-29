@@ -71,7 +71,7 @@ pub fn main_loop() {
     println!("{NAME} {VERSION}{version_extension} by Cosmo");
 
     // Load an onnx file into a Graph.
-    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./model-4.onnx", false).unwrap();
+    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./model.onnx", false).unwrap();
     // Optimise the graph.
     let graph = kn_graph::optimizer::optimize_graph(&raw_graph, OptimizerSettings::default());
     // Deallocate the raw graph.

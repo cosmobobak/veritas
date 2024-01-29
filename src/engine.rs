@@ -1,6 +1,7 @@
 use std::{sync::atomic::Ordering, time::Instant};
 
 use gomokugen::board::{Board, Move, Player};
+use kn_cuda_eval::{executor::CudaExecutor, CudaDevice};
 use kn_graph::{
     dtype::{DTensor, Tensor},
     graph::Graph,
@@ -107,8 +108,15 @@ impl<'a> Engine<'a> {
     }
 
     /// Evaluates the policy network on a position.
-    fn generate_policy(graph: &kn_graph::graph::Graph, board: &Board<9>) -> Vec<f32> {
+    fn generate_policy(graph: &kn_graph::graph::Graph, board: &Board<9>, cpu: bool) -> Vec<f32> {
         // return vec![1.0; BOARD_SIZE.pow(2)];
+        if cpu {
+            Self::generate_policy_cpu(graph, board)
+        } else {
+            Self::generate_policy_cuda(graph, board)
+        }
+    }
+    fn generate_policy_cpu(graph: &kn_graph::graph::Graph, board: &Board<9>) -> Vec<f32> {
         // build inputs
         let batch_size = 1;
         // inputs are a 162 1-D element vector
@@ -123,6 +131,33 @@ impl<'a> Engine<'a> {
 
         // evaluate the graph on this input
         let tensors = kn_graph::cpu::cpu_eval_graph(graph, batch_size, &inputs);
+        assert_eq!(tensors.len(), 1);
+
+        // get the output as a vector
+        tensors[0]
+            .unwrap_f32()
+            .unwrap()
+            .as_slice()
+            .unwrap()
+            .to_vec()
+    }
+    fn generate_policy_cuda(graph: &kn_graph::graph::Graph, board: &Board<9>) -> Vec<f32> {
+        let device = CudaDevice::new(0)
+            .expect("failed to create CUDA device.");
+        let mut executor = CudaExecutor::new(device, graph, 1);
+
+        // inputs are a 162 1-D element vector
+        let mut tensor = Tensor::zeros(IxDyn(&[1, 162]));
+        // set the input data from the board state
+        let to_move = board.turn();
+        board.feature_map(|i, c| {
+            let index = i + usize::from(c != to_move) * 81;
+            tensor[[0, index]] = 1.0;
+        });
+        let inputs = [DTensor::F32(tensor)];
+
+        // run the executor
+        let tensors = executor.evaluate(&inputs);
         assert_eq!(tensors.len(), 1);
 
         // get the output as a vector
@@ -151,7 +186,7 @@ impl<'a> Engine<'a> {
         if tree.is_empty() {
             // create the root node
             tree.push(Node::new(Handle::null(), 0));
-            let policy = Self::generate_policy(nn_policy, root);
+            let policy = Self::generate_policy(nn_policy, root, false);
             tree[0].expand(root, &policy);
         }
 
@@ -265,7 +300,7 @@ impl<'a> Engine<'a> {
             // here, "expand" means adding all the legal moves to the node
             // with corresponding policy probabilities.
             if tree[node_idx].visits() == 1 {
-                let policy = Self::generate_policy(nn_policy, &pos);
+                let policy = Self::generate_policy(nn_policy, &pos, false);
                 tree[node_idx].expand(&pos, &policy);
             }
 
