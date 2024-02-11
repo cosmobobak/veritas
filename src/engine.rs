@@ -32,7 +32,7 @@ pub struct Engine<'a> {
     nn_policy: &'a Graph,
     /// A CUDA executor.
     #[cfg(feature = "cuda")]
-    cuda_executor: Option<&'a CudaExecutor>,
+    cuda_executor: Option<&'a mut CudaExecutor>,
 }
 
 enum SelectionResult {
@@ -54,6 +54,7 @@ impl<'a> Engine<'a> {
         limits: Limits,
         root: &Board<BOARD_SIZE>,
         nn_policy: &'a Graph,
+        #[cfg(feature = "cuda")] cuda_executor: Option<&'a mut CudaExecutor>,
     ) -> Self {
         Self {
             params,
@@ -61,6 +62,8 @@ impl<'a> Engine<'a> {
             tree: Vec::new(),
             root: *root,
             nn_policy,
+            #[cfg(feature = "cuda")]
+            cuda_executor,
         }
     }
 
@@ -108,12 +111,12 @@ impl<'a> Engine<'a> {
     }
 
     /// Evaluates the policy network on a position.
-    fn generate_policy(graph: &kn_graph::graph::Graph, board: &Board<BOARD_SIZE>, cpu: bool) -> Vec<f32> {
+    fn generate_policy(executor: Option<&mut CudaExecutor>, graph: &kn_graph::graph::Graph, board: &Board<BOARD_SIZE>, cpu: bool) -> Vec<f32> {
         // return vec![1.0; BOARD_SIZE.pow(2)];
         if cpu {
             Self::generate_policy_cpu(graph, board)
         } else {
-            Self::generate_policy_cuda(graph, board)
+            Self::generate_policy_cuda(executor.unwrap(), graph, board)
         }
     }
     fn generate_policy_cpu(graph: &kn_graph::graph::Graph, board: &Board<BOARD_SIZE>) -> Vec<f32> {
@@ -141,11 +144,7 @@ impl<'a> Engine<'a> {
             .unwrap()
             .to_vec()
     }
-    fn generate_policy_cuda(graph: &kn_graph::graph::Graph, board: &Board<9>) -> Vec<f32> {
-        let device = CudaDevice::new(0)
-            .expect("failed to create CUDA device.");
-        let mut executor = CudaExecutor::new(device, graph, 1);
-
+    fn generate_policy_cuda(executor: &mut CudaExecutor, graph: &kn_graph::graph::Graph, board: &Board<9>) -> Vec<f32> {
         // inputs are a 162 1-D element vector
         let mut tensor = Tensor::zeros(IxDyn(&[1, 162]));
         // set the input data from the board state
@@ -186,7 +185,11 @@ impl<'a> Engine<'a> {
         if tree.is_empty() {
             // create the root node
             tree.push(Node::new(Handle::null(), 0));
-            let policy = Self::generate_policy(nn_policy, root, false);
+            #[cfg(feature = "cuda")]
+            let executor = params.cuda_executor.as_ref();
+            #[cfg(not(feature = "cuda"))]
+            let executor = None;
+            let policy = Self::generate_policy(executor, nn_policy, root, false);
             tree[0].expand(root, &policy);
         }
 
@@ -300,7 +303,11 @@ impl<'a> Engine<'a> {
             // here, "expand" means adding all the legal moves to the node
             // with corresponding policy probabilities.
             if tree[node_idx].visits() == 1 {
-                let policy = Self::generate_policy(nn_policy, &pos, false);
+                #[cfg(feature = "cuda")]
+                let executor = params.cuda_executor.as_ref();
+                #[cfg(not(feature = "cuda"))]
+                let executor = None;
+                let policy = Self::generate_policy(executor, nn_policy, &pos, false);
                 tree[node_idx].expand(&pos, &policy);
             }
 

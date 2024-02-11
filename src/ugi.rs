@@ -70,6 +70,10 @@ pub fn main_loop() {
     };
     println!("{NAME} {VERSION}{version_extension} by Cosmo");
 
+    let device = CudaDevice::new(0)
+        .expect("failed to create CUDA device.");
+    let mut executor = CudaExecutor::new(device, graph, 1);
+
     // Load an onnx file into a Graph.
     let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./model.onnx", false).unwrap();
     // Optimise the graph.
