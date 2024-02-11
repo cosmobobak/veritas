@@ -67,13 +67,13 @@ pub struct Node {
     child: Handle,
     /// Index to a next sibling. Null if there are no more siblings.
     sibling: Handle,
-    /// Averaged draw probability. Not flipped.
+    // Averaged draw probability. Not flipped.
     // draw_probability: f32,
-    /// Estimated remaining plies until the end of the game.
+    // Estimated remaining plies until the end of the game.
     // remaining: f32,
     /// Number of completed visits to this node.
     visits: u32,
-    /// How many threads are currently visiting this node.
+    // How many threads are currently visiting this node.
     // num_in_flight: u32,
     /// Index of this node in the parent's edge list.
     index: u16,
