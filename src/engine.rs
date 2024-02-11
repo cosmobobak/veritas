@@ -91,6 +91,7 @@ impl<'a> Engine<'a> {
         trace!("Engine::go()");
 
         Self::search(
+            self.cuda_executor,
             &self.root,
             &mut self.tree,
             &self.params,
@@ -168,6 +169,7 @@ impl<'a> Engine<'a> {
 
     /// Repeat the search loop until the time limit is reached.
     fn search(
+        executor: Option<&mut CudaExecutor>,
         root: &Board<BOARD_SIZE>,
         tree: &mut Vec<Node>,
         params: &Params,
@@ -183,7 +185,6 @@ impl<'a> Engine<'a> {
         if tree.is_empty() {
             // create the root node
             tree.push(Node::new(Handle::null(), 0));
-            let executor = params.cuda_executor.as_ref();
             let policy = Self::generate_policy(executor, nn_policy, root, false);
             tree[0].expand(root, &policy);
         }
@@ -193,7 +194,7 @@ impl<'a> Engine<'a> {
         let mut stopped_by_stdin = false;
         while !limits.is_out_of_time(nodes_searched, elapsed) && !stopped_by_stdin {
             // perform one iteration of selection, expansion, simulation, and backpropagation
-            Self::do_sesb(root, tree, params, nn_policy);
+            Self::do_sesb(executor, root, tree, params, nn_policy);
 
             // update elapsed time and print stats
             if nodes_searched % 1024 == 0 {
@@ -237,11 +238,12 @@ impl<'a> Engine<'a> {
     }
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
-    fn do_sesb(root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, nn_policy: &Graph) {
+    fn do_sesb(
+        executor: Option<&mut CudaExecutor>,root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, nn_policy: &Graph) {
         trace!("Engine::do_sesb(root, tree, params)");
 
         // select
-        let selection = Self::select(root, tree, params, 0, nn_policy);
+        let selection = Self::select(executor, root, tree, params, 0, nn_policy);
 
         match selection {
             SelectionResult::NonTerminal {
@@ -284,6 +286,7 @@ impl<'a> Engine<'a> {
     /// Descends the tree, selecting the best node at each step.
     /// Returns the index of a node, and the index of the edge to be expanded.
     fn select(
+        executor: Option<&mut CudaExecutor>,
         root: &Board<BOARD_SIZE>,
         tree: &mut [Node],
         params: &Params,
@@ -298,7 +301,6 @@ impl<'a> Engine<'a> {
             // here, "expand" means adding all the legal moves to the node
             // with corresponding policy probabilities.
             if tree[node_idx].visits() == 1 {
-                let executor = params.cuda_executor.as_ref();
                 let policy = Self::generate_policy(executor, nn_policy, &pos, false);
                 tree[node_idx].expand(&pos, &policy);
             }
