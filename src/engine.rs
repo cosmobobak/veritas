@@ -109,7 +109,7 @@ impl<'a> Engine<'a> {
 
     /// Evaluates the policy network on a position.
     fn generate_policy(graph: &kn_graph::graph::Graph, board: &Board<BOARD_SIZE>, cpu: bool) -> Vec<f32> {
-        return vec![1.0; BOARD_SIZE.pow(2)];
+        // return vec![1.0; BOARD_SIZE.pow(2)];
         if cpu {
             Self::generate_policy_cpu(graph, board)
         } else {
