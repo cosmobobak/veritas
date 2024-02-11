@@ -22,7 +22,7 @@ fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize) {
     let default_params = Params::default();
     let default_limits = "nodes 800".parse().unwrap();
     let starting_position = Board::new();
-    let mut engine = Engine::new(default_params, default_limits, &starting_position, &graph);
+    let mut engine = Engine::new(default_params, default_limits, &starting_position, &graph, None);
 
     let start_time = std::time::Instant::now();
 
