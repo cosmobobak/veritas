@@ -31,7 +31,6 @@ pub struct Engine<'a> {
     /// The policy network.
     nn_policy: &'a Graph,
     /// A CUDA executor.
-    #[cfg(feature = "cuda")]
     cuda_executor: Option<&'a mut CudaExecutor>,
 }
 
@@ -54,7 +53,7 @@ impl<'a> Engine<'a> {
         limits: Limits,
         root: &Board<BOARD_SIZE>,
         nn_policy: &'a Graph,
-        #[cfg(feature = "cuda")] cuda_executor: Option<&'a mut CudaExecutor>,
+        cuda_executor: Option<&'a mut CudaExecutor>,
     ) -> Self {
         Self {
             params,
@@ -62,7 +61,6 @@ impl<'a> Engine<'a> {
             tree: Vec::new(),
             root: *root,
             nn_policy,
-            #[cfg(feature = "cuda")]
             cuda_executor,
         }
     }
@@ -185,10 +183,7 @@ impl<'a> Engine<'a> {
         if tree.is_empty() {
             // create the root node
             tree.push(Node::new(Handle::null(), 0));
-            #[cfg(feature = "cuda")]
             let executor = params.cuda_executor.as_ref();
-            #[cfg(not(feature = "cuda"))]
-            let executor = None;
             let policy = Self::generate_policy(executor, nn_policy, root, false);
             tree[0].expand(root, &policy);
         }
@@ -303,10 +298,7 @@ impl<'a> Engine<'a> {
             // here, "expand" means adding all the legal moves to the node
             // with corresponding policy probabilities.
             if tree[node_idx].visits() == 1 {
-                #[cfg(feature = "cuda")]
                 let executor = params.cuda_executor.as_ref();
-                #[cfg(not(feature = "cuda"))]
-                let executor = None;
                 let policy = Self::generate_policy(executor, nn_policy, &pos, false);
                 tree[node_idx].expand(&pos, &policy);
             }
