@@ -1,3 +1,6 @@
 /target
 /data
 *.onnx
+perf.data*
+flamegraph.svg
+log.txt
