@@ -5,6 +5,7 @@ use std::{sync::{
     mpsc, Mutex,
 }, ops::ControlFlow};
 
+use kn_cuda_eval::{executor::CudaExecutor, CudaDevice};
 use gomokugen::board::{Board, Player};
 use kn_graph::optimizer::OptimizerSettings;
 use log::info;
@@ -72,7 +73,6 @@ pub fn main_loop() {
 
     let device = CudaDevice::new(0)
         .expect("failed to create CUDA device.");
-    let mut executor = CudaExecutor::new(device, graph, 1);
 
     // Load an onnx file into a Graph.
     let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./model.onnx", false).unwrap();
@@ -80,6 +80,8 @@ pub fn main_loop() {
     let graph = kn_graph::optimizer::optimize_graph(&raw_graph, OptimizerSettings::default());
     // Deallocate the raw graph.
     std::mem::drop(raw_graph);
+
+    let mut executor = CudaExecutor::new(device, &graph, 1);
 
     let default_params = Params::default().with_stdin_rx(&stdin).with_stdout(true);
     let default_limits = Limits::default();
