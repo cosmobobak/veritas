@@ -79,6 +79,8 @@ impl Executor {
         let mut indices = Vec::new();
         let mut input = Tensor::zeros(IxDyn(&[EXECUTOR_BATCH_SIZE, 162]));
         for (batch_index, (pipe_index, board)) in self.in_waiting.drain(..EXECUTOR_BATCH_SIZE).enumerate() {
+            // TODO: this is really tightly coupled to the board representation
+            // and should be abstracted away.
             let to_move = board.turn();
             board.feature_map(|i, c| {
                 let index = i + usize::from(c != to_move) * 81;
@@ -88,18 +90,7 @@ impl Executor {
         }
         let inputs = [DTensor::F32(input)];
         let tensors = self.internal.evaluate(&inputs);
-        // old way for vector-of-1d-tensors:
-        // for (i, tensor) in tensors.iter().enumerate() {
-        //     let pipe_index = indices[i];
-        //     let vec = tensor.unwrap_f32()
-        //         .unwrap()
-        //         .as_slice()
-        //         .unwrap()
-        //         .to_vec();
-        //     self.eval_pipes[pipe_index].sender.send(vec).unwrap();
-        // }
 
-        // new way for 2d-tensor:
         let tensor = tensors[0].unwrap_f32().unwrap();
         for (batch_index, pipe_index) in indices.into_iter().enumerate() {
             let vec = tensor.slice(s![batch_index, ..]).to_vec();
