@@ -42,7 +42,7 @@ impl Executor {
 
     /// Fill the `in_waiting` queue with boards from the pipes.
     /// This function will block until the queue is full.
-    pub fn pull(&mut self) {
+    pub fn pull(&mut self) -> Result<(), crossbeam::channel::RecvTimeoutError> {
         let mut found_anything = true;
         while found_anything && self.in_waiting.len() < EXECUTOR_BATCH_SIZE {
             found_anything = false;
@@ -55,7 +55,7 @@ impl Executor {
         }
         // if we have enough to fill the queue, return
         if self.in_waiting.len() >= EXECUTOR_BATCH_SIZE {
-            return;
+            return Ok(());
         }
         // otherwise, block until we have enough
         let mut select = crossbeam::channel::Select::new();
@@ -65,10 +65,10 @@ impl Executor {
         loop {
             let oper = select.select();
             let index = oper.index();
-            let board = oper.recv(&self.eval_pipes[index].receiver).unwrap();
+            let board = oper.recv(&self.eval_pipes[index].receiver)?;
             self.in_waiting.push((index, board));
             if self.in_waiting.len() >= EXECUTOR_BATCH_SIZE {
-                break;
+                break Ok(());
             }
         }
     }
@@ -116,7 +116,10 @@ pub fn executor(graph: &Graph) -> Vec<ExecutorHandle> {
         .name("executor".into())
         .spawn(move || {
             loop {
-                executor.pull();
+                let res = executor.pull();
+                if res.is_err() {
+                    break;
+                }
                 executor.tick();
             }
         })
