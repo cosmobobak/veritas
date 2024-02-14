@@ -1,7 +1,6 @@
 use std::{sync::atomic::Ordering, time::Instant};
-use std::io::Write;
+
 use gomokugen::board::{Board, Move, Player};
-use kn_cuda_eval::{executor::CudaExecutor, CudaDevice};
 use kn_graph::{
     dtype::{DTensor, Tensor},
     graph::Graph,
@@ -9,7 +8,7 @@ use kn_graph::{
 };
 use log::{trace, debug};
 
-use crate::{arena::Handle, node::Node, params::Params, timemgmt::Limits, ugi, BOARD_SIZE};
+use crate::{arena::Handle, batching::ExecutorHandle, node::Node, params::Params, timemgmt::Limits, ugi, BOARD_SIZE};
 
 pub struct SearchResults {
     /// The best move found.
@@ -30,8 +29,8 @@ pub struct Engine<'a> {
     root: Board<BOARD_SIZE>,
     /// The policy network.
     nn_policy: &'a Graph,
-    /// A CUDA executor.
-    cuda_executor: Option<&'a mut CudaExecutor>,
+    /// Interface to the CUDA executor.
+    eval_pipe: ExecutorHandle,
 }
 
 enum SelectionResult {
@@ -53,7 +52,7 @@ impl<'a> Engine<'a> {
         limits: Limits,
         root: &Board<BOARD_SIZE>,
         nn_policy: &'a Graph,
-        cuda_executor: Option<&'a mut CudaExecutor>,
+        eval_pipe: ExecutorHandle,
     ) -> Self {
         Self {
             params,
@@ -61,7 +60,7 @@ impl<'a> Engine<'a> {
             tree: Vec::new(),
             root: *root,
             nn_policy,
-            cuda_executor,
+            eval_pipe,
         }
     }
 
@@ -91,7 +90,7 @@ impl<'a> Engine<'a> {
         trace!("Engine::go()");
 
         Self::search(
-            self.cuda_executor,
+            &self.eval_pipe,
             &self.root,
             &mut self.tree,
             &self.params,
@@ -110,12 +109,12 @@ impl<'a> Engine<'a> {
     }
 
     /// Evaluates the policy network on a position.
-    fn generate_policy(executor: Option<&mut CudaExecutor>, graph: &kn_graph::graph::Graph, board: &Board<BOARD_SIZE>, cpu: bool) -> Vec<f32> {
+    fn generate_policy(executor: &ExecutorHandle, graph: &kn_graph::graph::Graph, board: &Board<BOARD_SIZE>, cpu: bool) -> Vec<f32> {
         // return vec![1.0; BOARD_SIZE.pow(2)];
         if cpu {
             Self::generate_policy_cpu(graph, board)
         } else {
-            Self::generate_policy_cuda(executor.unwrap(), graph, board)
+            Self::generate_policy_cuda(executor, board)
         }
     }
     fn generate_policy_cpu(graph: &kn_graph::graph::Graph, board: &Board<BOARD_SIZE>) -> Vec<f32> {
@@ -143,33 +142,16 @@ impl<'a> Engine<'a> {
             .unwrap()
             .to_vec()
     }
-    fn generate_policy_cuda(executor: &mut CudaExecutor, graph: &kn_graph::graph::Graph, board: &Board<9>) -> Vec<f32> {
-        // inputs are a 162 1-D element vector
-        let mut tensor = Tensor::zeros(IxDyn(&[1, 162]));
-        // set the input data from the board state
-        let to_move = board.turn();
-        board.feature_map(|i, c| {
-            let index = i + usize::from(c != to_move) * 81;
-            tensor[[0, index]] = 1.0;
-        });
-        let inputs = [DTensor::F32(tensor)];
-
-        // run the executor
-        let tensors = executor.evaluate(&inputs);
-        assert_eq!(tensors.len(), 1);
-
-        // get the output as a vector
-        tensors[0]
-            .unwrap_f32()
-            .unwrap()
-            .as_slice()
-            .unwrap()
-            .to_vec()
+    fn generate_policy_cuda(executor: &ExecutorHandle, board: &Board<9>) -> Vec<f32> {
+        // send the board to the executor
+        executor.sender.send(*board).expect("failed to send board to executor");
+        // wait for the result
+        executor.receiver.recv().expect("failed to receive tensor from executor")
     }
 
     /// Repeat the search loop until the time limit is reached.
     fn search(
-        executor: Option<&mut CudaExecutor>,
+        executor: &ExecutorHandle,
         root: &Board<BOARD_SIZE>,
         tree: &mut Vec<Node>,
         params: &Params,
@@ -239,7 +221,7 @@ impl<'a> Engine<'a> {
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
     fn do_sesb(
-        executor: Option<&mut CudaExecutor>,root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, nn_policy: &Graph) {
+        executor: &ExecutorHandle,root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, nn_policy: &Graph) {
         trace!("Engine::do_sesb(root, tree, params)");
 
         // select
@@ -286,7 +268,7 @@ impl<'a> Engine<'a> {
     /// Descends the tree, selecting the best node at each step.
     /// Returns the index of a node, and the index of the edge to be expanded.
     fn select(
-        executor: Option<&mut CudaExecutor>,
+        executor: &ExecutorHandle,
         root: &Board<BOARD_SIZE>,
         tree: &mut [Node],
         params: &Params,

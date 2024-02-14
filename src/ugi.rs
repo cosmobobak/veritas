@@ -5,16 +5,12 @@ use std::{sync::{
     mpsc, Mutex,
 }, ops::ControlFlow};
 
-use kn_cuda_eval::{executor::CudaExecutor, CudaDevice};
 use gomokugen::board::{Board, Player};
 use kn_graph::optimizer::OptimizerSettings;
 use log::info;
 
 use crate::{
-    engine::{Engine, SearchResults},
-    params::Params,
-    timemgmt::Limits,
-    NAME, VERSION,
+    batching, engine::{Engine, SearchResults}, params::Params, timemgmt::Limits, NAME, VERSION
 };
 
 fn stdin_reader() -> mpsc::Receiver<String> {
@@ -71,9 +67,6 @@ pub fn main_loop() {
     };
     println!("{NAME} {VERSION}{version_extension} by Cosmo");
 
-    let device = CudaDevice::new(0)
-        .expect("failed to create CUDA device.");
-
     // Load an onnx file into a Graph.
     let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./model.onnx", false).unwrap();
     // Optimise the graph.
@@ -81,12 +74,12 @@ pub fn main_loop() {
     // Deallocate the raw graph.
     std::mem::drop(raw_graph);
 
-    let mut executor = CudaExecutor::new(device, &graph, 1);
+    let executor_handles = batching::executor(&graph);
 
     let default_params = Params::default().with_stdin_rx(&stdin).with_stdout(true);
     let default_limits = Limits::default();
     let starting_position = Board::new();
-    let mut engine = Engine::new(default_params, default_limits, &starting_position, &graph, Some(&mut executor));
+    let mut engine = Engine::new(default_params, default_limits, &starting_position, &graph, executor_handles.into_iter().next().unwrap());
 
     loop {
         std::io::Write::flush(&mut std::io::stdout()).expect("couldn't flush stdout");

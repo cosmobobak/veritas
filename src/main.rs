@@ -12,6 +12,7 @@ mod params;
 mod timemgmt;
 mod ugi;
 mod datagen;
+mod batching;
 
 /// The name of the engine.
 pub static NAME: &str = "Veritas";
