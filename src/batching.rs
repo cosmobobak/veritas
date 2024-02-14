@@ -8,7 +8,7 @@ use gomokugen::board::Board;
 
 use crate::BOARD_SIZE;
 
-const EXECUTOR_BATCH_SIZE: usize = 1;
+const EXECUTOR_BATCH_SIZE: usize = 2;
 
 pub struct ExecutorHandle {
     pub sender: crossbeam::channel::Sender<Board<BOARD_SIZE>>,
