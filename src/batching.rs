@@ -2,7 +2,7 @@ use kn_cuda_eval::{executor::CudaExecutor, CudaDevice};
 use kn_graph::{
     dtype::{DTensor, Tensor},
     graph::Graph,
-    ndarray::IxDyn,
+    ndarray::{s, IxDyn},
 };
 use gomokugen::board::Board;
 
@@ -76,26 +76,33 @@ impl Executor {
     pub fn tick(&mut self) {
         // take the first EXECUTOR_BATCH_SIZE elements from in_waiting,
         // evaluate them, and send the results to the corresponding pipes
-        let mut inputs = Vec::new();
         let mut indices = Vec::new();
-        for (pipe_index, board) in self.in_waiting.drain(..EXECUTOR_BATCH_SIZE) {
-            let mut tensor = Tensor::zeros(IxDyn(&[162]));
+        let mut input = Tensor::zeros(IxDyn(&[EXECUTOR_BATCH_SIZE, 162]));
+        for (batch_index, (pipe_index, board)) in self.in_waiting.drain(..EXECUTOR_BATCH_SIZE).enumerate() {
             let to_move = board.turn();
             board.feature_map(|i, c| {
                 let index = i + usize::from(c != to_move) * 81;
-                tensor[index] = 1.0;
+                input[[batch_index, index]] = 1.0;
             });
-            inputs.push(DTensor::F32(tensor));
             indices.push(pipe_index);
         }
+        let inputs = [DTensor::F32(input)];
         let tensors = self.internal.evaluate(&inputs);
-        for (i, tensor) in tensors.iter().enumerate() {
-            let pipe_index = indices[i];
-            let vec = tensor.unwrap_f32()
-                .unwrap()
-                .as_slice()
-                .unwrap()
-                .to_vec();
+        // old way for vector-of-1d-tensors:
+        // for (i, tensor) in tensors.iter().enumerate() {
+        //     let pipe_index = indices[i];
+        //     let vec = tensor.unwrap_f32()
+        //         .unwrap()
+        //         .as_slice()
+        //         .unwrap()
+        //         .to_vec();
+        //     self.eval_pipes[pipe_index].sender.send(vec).unwrap();
+        // }
+
+        // new way for 2d-tensor:
+        let tensor = tensors[0].unwrap_f32().unwrap();
+        for (batch_index, pipe_index) in indices.into_iter().enumerate() {
+            let vec = tensor.slice(s![batch_index, ..]).to_vec();
             self.eval_pipes[pipe_index].sender.send(vec).unwrap();
         }
     }
