@@ -1,7 +1,6 @@
 use std::{sync::atomic::Ordering, time::Instant};
-use std::io::Write;
+
 use gomokugen::board::{Board, Move, Player};
-// use kn_cuda_eval::{executor::CudaExecutor, CudaDevice};
 use kn_graph::{
     dtype::{DTensor, Tensor},
     graph::Graph,
@@ -9,7 +8,7 @@ use kn_graph::{
 };
 use log::{trace, debug};
 
-use crate::{arena::Handle, node::Node, params::Params, timemgmt::Limits, ugi, BOARD_SIZE};
+use crate::{arena::Handle, batching::ExecutorHandle, node::Node, params::Params, timemgmt::Limits, ugi, BOARD_SIZE};
 
 pub struct SearchResults {
     /// The best move found.
@@ -30,9 +29,8 @@ pub struct Engine<'a> {
     root: Board<BOARD_SIZE>,
     /// The policy network.
     nn_policy: &'a Graph,
-    /// A CUDA executor.
-    #[cfg(feature = "cuda")]
-    cuda_executor: Option<&'a CudaExecutor>,
+    /// Interface to the CUDA executor.
+    eval_pipe: ExecutorHandle,
 }
 
 enum SelectionResult {
@@ -54,6 +52,7 @@ impl<'a> Engine<'a> {
         limits: Limits,
         root: &Board<BOARD_SIZE>,
         nn_policy: &'a Graph,
+        eval_pipe: ExecutorHandle,
     ) -> Self {
         Self {
             params,
@@ -61,6 +60,7 @@ impl<'a> Engine<'a> {
             tree: Vec::new(),
             root: *root,
             nn_policy,
+            eval_pipe,
         }
     }
 
@@ -90,6 +90,7 @@ impl<'a> Engine<'a> {
         trace!("Engine::go()");
 
         Self::search(
+            &self.eval_pipe,
             &self.root,
             &mut self.tree,
             &self.params,
@@ -108,13 +109,13 @@ impl<'a> Engine<'a> {
     }
 
     /// Evaluates the policy network on a position.
-    fn generate_policy(graph: &kn_graph::graph::Graph, board: &Board<BOARD_SIZE>, cpu: bool) -> Vec<f32> {
-        return vec![1.0; BOARD_SIZE.pow(2)];
-        // if cpu {
+    fn generate_policy(executor: &ExecutorHandle, graph: &kn_graph::graph::Graph, board: &Board<BOARD_SIZE>, cpu: bool) -> Vec<f32> {
+        // return vec![1.0; BOARD_SIZE.pow(2)];
+        if cpu {
             Self::generate_policy_cpu(graph, board)
-        // } else {
-        //     Self::generate_policy_cuda(graph, board)
-        // }
+        } else {
+            Self::generate_policy_cuda(executor, board)
+        }
     }
     fn generate_policy_cpu(graph: &kn_graph::graph::Graph, board: &Board<BOARD_SIZE>) -> Vec<f32> {
         // build inputs
@@ -141,36 +142,16 @@ impl<'a> Engine<'a> {
             .unwrap()
             .to_vec()
     }
-    // fn generate_policy_cuda(graph: &kn_graph::graph::Graph, board: &Board<9>) -> Vec<f32> {
-    //     let device = CudaDevice::new(0)
-    //         .expect("failed to create CUDA device.");
-    //     let mut executor = CudaExecutor::new(device, graph, 1);
-
-    //     // inputs are a 162 1-D element vector
-    //     let mut tensor = Tensor::zeros(IxDyn(&[1, 162]));
-    //     // set the input data from the board state
-    //     let to_move = board.turn();
-    //     board.feature_map(|i, c| {
-    //         let index = i + usize::from(c != to_move) * 81;
-    //         tensor[[0, index]] = 1.0;
-    //     });
-    //     let inputs = [DTensor::F32(tensor)];
-
-    //     // run the executor
-    //     let tensors = executor.evaluate(&inputs);
-    //     assert_eq!(tensors.len(), 1);
-
-    //     // get the output as a vector
-    //     tensors[0]
-    //         .unwrap_f32()
-    //         .unwrap()
-    //         .as_slice()
-    //         .unwrap()
-    //         .to_vec()
-    // }
+    fn generate_policy_cuda(executor: &ExecutorHandle, board: &Board<9>) -> Vec<f32> {
+        // send the board to the executor
+        executor.sender.send(*board).expect("failed to send board to executor");
+        // wait for the result
+        executor.receiver.recv().expect("failed to receive tensor from executor")
+    }
 
     /// Repeat the search loop until the time limit is reached.
     fn search(
+        executor: &ExecutorHandle,
         root: &Board<BOARD_SIZE>,
         tree: &mut Vec<Node>,
         params: &Params,
@@ -186,7 +167,7 @@ impl<'a> Engine<'a> {
         if tree.is_empty() {
             // create the root node
             tree.push(Node::new(Handle::null(), 0));
-            let policy = Self::generate_policy(nn_policy, root, false);
+            let policy = Self::generate_policy(executor, nn_policy, root, false);
             tree[0].expand(root, &policy);
         }
 
@@ -195,7 +176,7 @@ impl<'a> Engine<'a> {
         let mut stopped_by_stdin = false;
         while !limits.is_out_of_time(nodes_searched, elapsed) && !stopped_by_stdin {
             // perform one iteration of selection, expansion, simulation, and backpropagation
-            Self::do_sesb(root, tree, params, nn_policy);
+            Self::do_sesb(executor, root, tree, params, nn_policy);
 
             // update elapsed time and print stats
             if nodes_searched % 1024 == 0 {
@@ -239,11 +220,12 @@ impl<'a> Engine<'a> {
     }
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
-    fn do_sesb(root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, nn_policy: &Graph) {
+    fn do_sesb(
+        executor: &ExecutorHandle,root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, nn_policy: &Graph) {
         trace!("Engine::do_sesb(root, tree, params)");
 
         // select
-        let selection = Self::select(root, tree, params, 0, nn_policy);
+        let selection = Self::select(executor, root, tree, params, 0, nn_policy);
 
         match selection {
             SelectionResult::NonTerminal {
@@ -286,6 +268,7 @@ impl<'a> Engine<'a> {
     /// Descends the tree, selecting the best node at each step.
     /// Returns the index of a node, and the index of the edge to be expanded.
     fn select(
+        executor: &ExecutorHandle,
         root: &Board<BOARD_SIZE>,
         tree: &mut [Node],
         params: &Params,
@@ -300,7 +283,7 @@ impl<'a> Engine<'a> {
             // here, "expand" means adding all the legal moves to the node
             // with corresponding policy probabilities.
             if tree[node_idx].visits() == 1 {
-                let policy = Self::generate_policy(nn_policy, &pos, false);
+                let policy = Self::generate_policy(executor, nn_policy, &pos, false);
                 tree[node_idx].expand(&pos, &policy);
             }
 

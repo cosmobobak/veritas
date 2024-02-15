@@ -21,7 +21,11 @@ smallvec = "1.12.0"
 chrono = "0.4.31"
 # kn-cuda-sys = "0.6.1"
 # kn-cuda-eval = "0.6.1"
-kn-graph = "0.6.1"
+# kn-graph = "0.6.1"
+kn-graph = { path = "../Kyanite/kn-graph" }
+kn-cuda-eval = { path = "../Kyanite/kn-cuda-eval" }
+kn-cuda-sys = { path = "../Kyanite/kn-cuda-sys" }
+crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
 
 [profile.release]
 debug = true

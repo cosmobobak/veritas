@@ -10,10 +10,7 @@ use kn_graph::optimizer::OptimizerSettings;
 use log::info;
 
 use crate::{
-    engine::{Engine, SearchResults},
-    params::Params,
-    timemgmt::Limits,
-    NAME, VERSION,
+    batching, engine::{Engine, SearchResults}, params::Params, timemgmt::Limits, NAME, VERSION
 };
 
 fn stdin_reader() -> mpsc::Receiver<String> {
@@ -77,10 +74,12 @@ pub fn main_loop() {
     // Deallocate the raw graph.
     std::mem::drop(raw_graph);
 
+    let executor_handles = batching::executor(&graph);
+
     let default_params = Params::default().with_stdin_rx(&stdin).with_stdout(true);
     let default_limits = Limits::default();
     let starting_position = Board::new();
-    let mut engine = Engine::new(default_params, default_limits, &starting_position, &graph);
+    let mut engine = Engine::new(default_params, default_limits, &starting_position, &graph, executor_handles.into_iter().next().unwrap());
 
     loop {
         std::io::Write::flush(&mut std::io::stdout()).expect("couldn't flush stdout");

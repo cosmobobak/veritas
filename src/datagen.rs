@@ -3,7 +3,7 @@ use std::{io::{Write, BufWriter}, fs::File};
 use gomokugen::board::{Board, Move, Player};
 use kn_graph::optimizer::OptimizerSettings;
 
-use crate::{params::Params, engine::{Engine, SearchResults}, BOARD_SIZE};
+use crate::{batching, engine::{Engine, SearchResults}, params::Params, BOARD_SIZE};
 
 struct GameRecord {
     root: Board<BOARD_SIZE>,
@@ -19,10 +19,12 @@ fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize) {
     // Deallocate the raw graph.
     std::mem::drop(raw_graph);
 
+    let executor_handles = batching::executor(&graph);
+
     let default_params = Params::default();
     let default_limits = "nodes 800".parse().unwrap();
     let starting_position = Board::new();
-    let mut engine = Engine::new(default_params, default_limits, &starting_position, &graph);
+    let mut engine = Engine::new(default_params, default_limits, &starting_position, &graph, executor_handles.into_iter().next().unwrap());
 
     let start_time = std::time::Instant::now();
 
