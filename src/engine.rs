@@ -1,5 +1,5 @@
 use std::{sync::atomic::Ordering, time::Instant};
-
+use std::io::Write;
 use gomokugen::board::{Board, Move, Player};
 use kn_graph::{
     dtype::{DTensor, Tensor},
@@ -171,7 +171,7 @@ impl<'a> Engine<'a> {
             tree[0].expand(root, &policy);
         }
 
-        // let mut log = std::io::BufWriter::new(std::fs::File::create("log.txt").unwrap());
+        let mut log = std::io::BufWriter::new(std::fs::File::create("log.txt").unwrap());
 
         let mut stopped_by_stdin = false;
         while !limits.is_out_of_time(nodes_searched, elapsed) && !stopped_by_stdin {
@@ -203,11 +203,11 @@ impl<'a> Engine<'a> {
                         false
                     };
                 // write the root rollout distribution to log.txt
-                // let root_dist = tree[0].dist(tree);
-                // for visit_count in root_dist {
-                //     write!(log, "{visit_count},").unwrap();
-                // }
-                // writeln!(log).unwrap();
+                let root_dist = tree[0].dist(tree);
+                for visit_count in root_dist {
+                    write!(log, "{visit_count},").unwrap();
+                }
+                writeln!(log).unwrap();
             }
             // update nodes searched
             nodes_searched += 1;
