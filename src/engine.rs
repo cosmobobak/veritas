@@ -146,7 +146,7 @@ impl<'a> Engine<'a> {
         // send the board to the executor
         executor.sender.send(*board).expect("failed to send board to executor");
         // wait for the result
-        executor.receiver.recv().expect("failed to receive tensor from executor")
+        executor.receiver.recv().expect("failed to receive tensor from executor").0
     }
 
     /// Repeat the search loop until the time limit is reached.
@@ -237,7 +237,10 @@ impl<'a> Engine<'a> {
                 let new_node = Self::expand(tree, params, best_node, edge_to_expand);
 
                 // simulate
-                let value = (params.valuator)(&board_state);
+                // send the board to the executor
+                executor.sender.send(board_state).expect("failed to send board to executor");
+                // wait for the result
+                let value = f64::from(executor.receiver.recv().expect("failed to receive value from executor").1);
 
                 // backpropagate
                 Self::backpropagate(tree, new_node, value);

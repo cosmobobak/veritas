@@ -12,11 +12,11 @@ const EXECUTOR_BATCH_SIZE: usize = 1;
 
 pub struct ExecutorHandle {
     pub sender: crossbeam::channel::Sender<Board<BOARD_SIZE>>,
-    pub receiver: crossbeam::channel::Receiver<Vec<f32>>,
+    pub receiver: crossbeam::channel::Receiver<(Vec<f32>, f32)>,
 }
 
 pub struct EvalPipe {
-    pub sender: crossbeam::channel::Sender<Vec<f32>>,
+    pub sender: crossbeam::channel::Sender<(Vec<f32>, f32)>,
     pub receiver: crossbeam::channel::Receiver<Board<BOARD_SIZE>>,
 }
 
@@ -90,12 +90,13 @@ impl Executor {
         }
         let inputs = [DTensor::F32(input)];
         let tensors = self.internal.evaluate(&inputs);
-        println!("tensors: {:?}", tensors);
 
-        let tensor = tensors[0].unwrap_f32().unwrap();
+        let policy = tensors[0].unwrap_f32().unwrap();
+        let value = tensors[1].unwrap_f32().unwrap();
         for (batch_index, pipe_index) in indices.into_iter().enumerate() {
-            let vec = tensor.slice(s![batch_index, ..]).to_vec();
-            self.eval_pipes[pipe_index].sender.send(vec).unwrap();
+            let policy_vec = policy.slice(s![batch_index, ..]).to_vec();
+            let value = value[[batch_index]];
+            self.eval_pipes[pipe_index].sender.send((policy_vec, value)).unwrap();
         }
     }
 }
