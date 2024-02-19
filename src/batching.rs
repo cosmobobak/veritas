@@ -90,6 +90,7 @@ impl Executor {
         }
         let inputs = [DTensor::F32(input)];
         let tensors = self.internal.evaluate(&inputs);
+        println!("tensors: {:?}", tensors);
 
         let tensor = tensors[0].unwrap_f32().unwrap();
         for (batch_index, pipe_index) in indices.into_iter().enumerate() {
