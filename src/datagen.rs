@@ -95,12 +95,11 @@ fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, e
     }
 }
 
-pub fn run_data_generation(time_allocated_millis: u128) {
+pub fn run_data_generation(num_threads: usize, time_allocated_millis: u128) {
     let date = chrono::Local::now().format("%Y-%m-%d-%H-%M-%S");
     let save_folder = format!("data/{date}");
     std::fs::create_dir_all(&save_folder).unwrap();
 
-    let num_threads = std::thread::available_parallelism().unwrap().get();
     println!("Running data generation with {num_threads} threads");
     let mut threads = Vec::new();
 

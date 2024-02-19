@@ -106,6 +106,7 @@ impl Executor {
 /// Starts the executor thread and returns a list of handles to the pipes.
 pub fn executor(graph: &Graph, batch_size: usize) -> Vec<ExecutorHandle> {
     let cuda_device = CudaDevice::new(0).unwrap();
+    println!("Using device: {}", cuda_device.name());
     let (mut executor, handles) = Executor::new(cuda_device, batch_size, graph);
     std::thread::Builder::new()
         .name("executor".into())

@@ -36,8 +36,9 @@ fn main() {
 
     match args[1].to_str().unwrap() {
         "datagen" => {
-            let time_allocated_millis = args[2].to_str().unwrap().parse().unwrap();
-            datagen::run_data_generation(time_allocated_millis);
+            let num_threads = args[2].to_str().unwrap().parse().unwrap();
+            let time_allocated_millis = args[3].to_str().unwrap().parse().unwrap();
+            datagen::run_data_generation(num_threads, time_allocated_millis);
         }
         _ => panic!("unknown subcommand"),
     }
