@@ -207,7 +207,7 @@ impl Node {
     }
 
     /// Expands this node, adding the legal moves and their policies.
-    pub fn expand(&mut self, &pos: &Board<BOARD_SIZE>, policy: &[f32]) {
+    pub fn expand(&mut self, pos: Board<BOARD_SIZE>, policy: &[f32]) {
         let mut moves = SmallVec::<[Edge; BOARD_SIZE * BOARD_SIZE]>::new();
         let mut max_logit = -1000.0;
         pos.generate_moves(|m| {

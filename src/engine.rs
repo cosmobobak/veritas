@@ -168,7 +168,7 @@ impl<'a> Engine<'a> {
             // create the root node
             tree.push(Node::new(Handle::null(), 0));
             let policy = Self::generate_policy(executor, nn_policy, root, false);
-            tree[0].expand(root, &policy);
+            tree[0].expand(*root, &policy);
         }
 
         let mut log = std::io::BufWriter::new(std::fs::File::create("log.txt").unwrap());
@@ -231,16 +231,11 @@ impl<'a> Engine<'a> {
             SelectionResult::NonTerminal {
                 node_index: best_node,
                 edge_index: edge_to_expand,
-                mut board_state,
+                board_state,
             } => {
                 assert!(board_state.outcome().is_none(), "non-terminal node has Some(outcome) - node was {:?}", tree[best_node]);
                 // expand
                 let new_node = Self::expand(tree, params, best_node, edge_to_expand);
-
-                // apply the move to the board
-                let edge = &tree[best_node].edges().unwrap()[edge_to_expand];
-                let mv = edge.get_move(false);
-                board_state.make_move(mv);
 
                 // simulate
                 // send the board to the executor
@@ -248,7 +243,7 @@ impl<'a> Engine<'a> {
                 // wait for the result
                 let (policy, value) = executor.receiver.recv().expect("failed to receive value from executor");
 
-                tree[new_node.index()].expand(&board_state, &policy);
+                tree[new_node.index()].expand(board_state, &policy);
 
                 // backpropagate
                 Self::backpropagate(tree, new_node, f64::from(value));
