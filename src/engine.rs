@@ -242,11 +242,11 @@ impl<'a> Engine<'a> {
                 executor.sender.send(board_state).expect("failed to send board to executor");
                 // wait for the result
                 let (policy, value) = executor.receiver.recv().expect("failed to receive value from executor");
-                let value = f64::from(value);
+
                 tree[new_node.index()].expand(&board_state, &policy);
 
                 // backpropagate
-                Self::backpropagate(tree, new_node, value);
+                Self::backpropagate(tree, new_node, f64::from(value));
             }
             SelectionResult::Terminal {
                 node_index: best_node,
@@ -275,7 +275,7 @@ impl<'a> Engine<'a> {
     /// Returns the index of a node, and the index of the edge to be expanded.
     fn select(
         root: &Board<BOARD_SIZE>,
-        tree: &[Node],
+        tree: &mut [Node],
         params: &Params,
         mut node_idx: usize,
     ) -> SelectionResult {
@@ -283,15 +283,16 @@ impl<'a> Engine<'a> {
 
         let mut pos = *root;
         loop {
-            // if the node has had a single visit, expand it
-            // here, "expand" means adding all the legal moves to the node
-            // with corresponding policy probabilities.
-            // this is mostly an optimisation for the case where we have unfused
-            // policy and value networks. ( which we don't :( )
-            // if tree[node_idx].visits() == 1 {
-            //     let policy = Self::generate_policy(executor, nn_policy, &pos, false);
-            //     tree[node_idx].expand(&pos, &policy);
-            // }
+            if tree[node_idx].visits() == 1 {
+                // if the node has had a single visit, expand it
+                // here, "expand" means adding all the legal moves to the node
+                // with corresponding policy probabilities.
+                // this is mostly an optimisation for the case where we have unfused
+                // policy and value networks. ( which we don't :( )
+                // let policy = Self::generate_policy(executor, nn_policy, &pos, false);
+                // tree[node_idx].expand(&pos, &policy);
+                tree[node_idx].check_game_over(&pos);
+            }
 
             // if the node is terminal, return it
             if tree[node_idx].is_terminal() {

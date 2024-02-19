@@ -267,6 +267,19 @@ impl Node {
         }
     }
 
+    pub fn check_game_over(&mut self, pos: &Board<BOARD_SIZE>) {
+        if let Some(result) = pos.outcome() {
+            self.terminal_type = Terminal::Terminal;
+            let game_result = match result {
+                Player::None => GameResult::Draw,
+                Player::X => GameResult::FirstPlayerWin,
+                Player::O => GameResult::SecondPlayerWin,
+            };
+            self.upper_bound = game_result;
+            self.lower_bound = game_result;
+        }
+    }
+
     /// Whether this node is terminal.
     pub fn is_terminal(&self) -> bool {
         self.terminal_type == Terminal::Terminal
