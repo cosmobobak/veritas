@@ -117,7 +117,7 @@ pub fn executor(graph: &Graph, batch_size: usize) -> Vec<ExecutorHandle> {
                     break;
                 }
                 executor.tick();
-                log::trace!("Batch of evaluations completed.");
+                log::debug!("Batch of evaluations completed.");
             }
         })
         .expect("Couldn't start executor thread");
