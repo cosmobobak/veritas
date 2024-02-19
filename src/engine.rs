@@ -233,7 +233,6 @@ impl<'a> Engine<'a> {
                 edge_index: edge_to_expand,
                 board_state,
             } => {
-                assert!(board_state.outcome().is_none(), "non-terminal node has Some(outcome) - node was {:?}", tree[best_node]);
                 // expand
                 let new_node = Self::expand(tree, params, best_node, edge_to_expand);
 
@@ -243,7 +242,8 @@ impl<'a> Engine<'a> {
                 // wait for the result
                 let (policy, value) = executor.receiver.recv().expect("failed to receive value from executor");
 
-                tree[new_node.index()].expand(board_state, &policy);
+                // expand this node
+                tree[best_node].expand(board_state, &policy);
 
                 // backpropagate
                 Self::backpropagate(tree, new_node, f64::from(value));
@@ -283,14 +283,10 @@ impl<'a> Engine<'a> {
 
         let mut pos = *root;
         loop {
+            // if the node has had a single visit, expand it
+            // here, "expand" means adding all the legal moves to the node
+            // with corresponding policy probabilities.
             if tree[node_idx].visits() == 1 {
-                // if the node has had a single visit, expand it
-                // here, "expand" means adding all the legal moves to the node
-                // with corresponding policy probabilities.
-                // this is mostly an optimisation for the case where we have unfused
-                // policy and value networks. ( which we don't :( )
-                // let policy = Self::generate_policy(executor, nn_policy, &pos, false);
-                // tree[node_idx].expand(&pos, &policy);
                 tree[node_idx].check_game_over(&pos);
             }
 
@@ -361,7 +357,7 @@ impl<'a> Engine<'a> {
             0.5
         };
 
-        let mut best_idx = usize::MAX;
+        let mut best_idx = 0;
         let mut best_value = f64::NEG_INFINITY;
         let mut best_child = Handle::null();
 
