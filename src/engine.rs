@@ -158,6 +158,7 @@ impl<'a> Engine<'a> {
         limits: &Limits,
         nn_policy: &Graph,
     ) {
+        #![allow(clippy::cast_precision_loss)]
         trace!("Engine::search(root, tree, params, limits)");
 
         let start_time = Instant::now();
@@ -182,9 +183,10 @@ impl<'a> Engine<'a> {
             if nodes_searched % 1024 == 0 {
                 if params.do_stdout {
                     print!(
-                        "info nodes {} time {} score q {:.1} pv",
+                        "info nodes {} time {} nps {} score q {:.1} pv",
                         nodes_searched,
                         elapsed,
+                        nodes_searched as f64 / (elapsed as f64 / 1000.0),
                         tree[0].winrate() * 100.0
                     );
                     Self::print_pv(root, tree, params);
