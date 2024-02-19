@@ -183,7 +183,7 @@ impl<'a> Engine<'a> {
             if nodes_searched % 1024 == 0 {
                 if params.do_stdout {
                     print!(
-                        "info nodes {} time {} nps {} score q {:.1} pv",
+                        "info nodes {} time {} nps {:.0} score q {:.1} pv",
                         nodes_searched,
                         elapsed,
                         nodes_searched as f64 / (elapsed as f64 / 1000.0),
