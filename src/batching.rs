@@ -97,7 +97,7 @@ impl Executor {
         println!("value: {:?}", value);
         for (batch_index, pipe_index) in indices.into_iter().enumerate() {
             let policy_vec = policy.slice(s![batch_index, ..]).to_vec();
-            let value = value[[batch_index]];
+            let value = value[[batch_index, 0]];
             self.eval_pipes[pipe_index].sender.send((policy_vec, value)).unwrap();
         }
     }
