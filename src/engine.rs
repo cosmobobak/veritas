@@ -308,7 +308,7 @@ impl<'a> Engine<'a> {
 
             let (edge_idx, child_idx) = Self::uct_best(tree, params, node_idx);
             // if the node has no children, return it, because we can't descend any further.
-            if child_idx.is_null() {
+            if edge_idx == usize::MAX {
                 return SelectionResult::NonTerminal {
                     node_index: node_idx,
                     edge_index: edge_idx,
@@ -361,7 +361,7 @@ impl<'a> Engine<'a> {
             0.5
         };
 
-        let mut best_idx = 0;
+        let mut best_idx = usize::MAX;
         let mut best_value = f64::NEG_INFINITY;
         let mut best_child = Handle::null();
 
