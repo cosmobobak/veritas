@@ -233,7 +233,7 @@ impl<'a> Engine<'a> {
                 edge_index: edge_to_expand,
                 board_state,
             } => {
-                assert!(board_state.outcome().is_none(), "non-terminal node has Some(outcome)");
+                assert!(board_state.outcome().is_none(), "non-terminal node has Some(outcome) - node was {:?}", tree[best_node]);
                 // expand
                 let new_node = Self::expand(tree, params, best_node, edge_to_expand);
 
@@ -308,7 +308,7 @@ impl<'a> Engine<'a> {
 
             let (edge_idx, child_idx) = Self::uct_best(tree, params, node_idx);
             // if the node has no children, return it, because we can't descend any further.
-            if edge_idx == usize::MAX {
+            if child_idx.is_null() {
                 return SelectionResult::NonTerminal {
                     node_index: node_idx,
                     edge_index: edge_idx,
