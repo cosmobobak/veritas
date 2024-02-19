@@ -233,6 +233,7 @@ impl<'a> Engine<'a> {
                 edge_index: edge_to_expand,
                 board_state,
             } => {
+                assert!(board_state.outcome().is_none(), "non-terminal node has Some(outcome)");
                 // expand
                 let new_node = Self::expand(tree, params, best_node, edge_to_expand);
 
