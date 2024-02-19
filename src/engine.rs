@@ -231,11 +231,16 @@ impl<'a> Engine<'a> {
             SelectionResult::NonTerminal {
                 node_index: best_node,
                 edge_index: edge_to_expand,
-                board_state,
+                mut board_state,
             } => {
                 assert!(board_state.outcome().is_none(), "non-terminal node has Some(outcome) - node was {:?}", tree[best_node]);
                 // expand
                 let new_node = Self::expand(tree, params, best_node, edge_to_expand);
+
+                // apply the move to the board
+                let edge = &tree[best_node].edges().unwrap()[edge_to_expand];
+                let mv = edge.get_move(false);
+                board_state.make_move(mv);
 
                 // simulate
                 // send the board to the executor
