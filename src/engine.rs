@@ -176,7 +176,7 @@ impl<'a> Engine<'a> {
         let mut stopped_by_stdin = false;
         while !limits.is_out_of_time(nodes_searched, elapsed) && !stopped_by_stdin {
             // perform one iteration of selection, expansion, simulation, and backpropagation
-            Self::do_sesb(executor, root, tree, params, nn_policy);
+            Self::do_sesb(executor, root, tree, params);
 
             // update elapsed time and print stats
             if nodes_searched % 1024 == 0 {
@@ -221,11 +221,11 @@ impl<'a> Engine<'a> {
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
     fn do_sesb(
-        executor: &ExecutorHandle,root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params, nn_policy: &Graph) {
+        executor: &ExecutorHandle,root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params) {
         trace!("Engine::do_sesb(root, tree, params)");
 
         // select
-        let selection = Self::select(executor, root, tree, params, 0, nn_policy);
+        let selection = Self::select(root, tree, params, 0);
 
         match selection {
             SelectionResult::NonTerminal {
@@ -240,7 +240,9 @@ impl<'a> Engine<'a> {
                 // send the board to the executor
                 executor.sender.send(board_state).expect("failed to send board to executor");
                 // wait for the result
-                let value = f64::from(executor.receiver.recv().expect("failed to receive value from executor").1);
+                let (policy, value) = executor.receiver.recv().expect("failed to receive value from executor");
+                let value = f64::from(value);
+                tree[new_node.index()].expand(&board_state, &policy);
 
                 // backpropagate
                 Self::backpropagate(tree, new_node, value);
@@ -271,12 +273,10 @@ impl<'a> Engine<'a> {
     /// Descends the tree, selecting the best node at each step.
     /// Returns the index of a node, and the index of the edge to be expanded.
     fn select(
-        executor: &ExecutorHandle,
         root: &Board<BOARD_SIZE>,
-        tree: &mut [Node],
+        tree: &[Node],
         params: &Params,
         mut node_idx: usize,
-        nn_policy: &Graph,
     ) -> SelectionResult {
         trace!("Engine::select(root, tree, params, node_idx = {node_idx})");
 
@@ -285,10 +285,12 @@ impl<'a> Engine<'a> {
             // if the node has had a single visit, expand it
             // here, "expand" means adding all the legal moves to the node
             // with corresponding policy probabilities.
-            if tree[node_idx].visits() == 1 {
-                let policy = Self::generate_policy(executor, nn_policy, &pos, false);
-                tree[node_idx].expand(&pos, &policy);
-            }
+            // this is mostly an optimisation for the case where we have unfused
+            // policy and value networks. ( which we don't :( )
+            // if tree[node_idx].visits() == 1 {
+            //     let policy = Self::generate_policy(executor, nn_policy, &pos, false);
+            //     tree[node_idx].expand(&pos, &policy);
+            // }
 
             // if the node is terminal, return it
             if tree[node_idx].is_terminal() {
