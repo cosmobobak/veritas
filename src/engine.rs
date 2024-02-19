@@ -231,10 +231,15 @@ impl<'a> Engine<'a> {
             SelectionResult::NonTerminal {
                 node_index: best_node,
                 edge_index: edge_to_expand,
-                board_state,
+                mut board_state,
             } => {
                 // expand
                 let new_node = Self::expand(tree, params, best_node, edge_to_expand);
+
+                // make the move
+                let edge = &tree[best_node].edges().unwrap()[edge_to_expand];
+                let mv = edge.get_move(false);
+                board_state.make_move(mv);
 
                 // simulate
                 // send the board to the executor
@@ -243,7 +248,7 @@ impl<'a> Engine<'a> {
                 let (policy, value) = executor.receiver.recv().expect("failed to receive value from executor");
 
                 // expand this node
-                tree[best_node].expand(board_state, &policy);
+                tree[new_node.index()].expand(board_state, &policy);
 
                 // backpropagate
                 Self::backpropagate(tree, new_node, f64::from(value));
