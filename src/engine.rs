@@ -250,7 +250,7 @@ impl<'a> Engine<'a> {
 
             // if the node is terminal, return it
             if tree[node_idx].is_terminal() {
-                debug!(
+                trace!(
                     "Engine::select: terminal node reached: index {node_idx}, position {}",
                     pos.fen()
                 );
