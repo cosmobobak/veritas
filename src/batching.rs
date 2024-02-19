@@ -69,7 +69,7 @@ impl Executor {
             let index = oper.index();
             let board = oper.recv(&self.eval_pipes[index].receiver)?;
             self.in_waiting.push((index, board));
-            if self.in_waiting.len() >= EXECUTOR_BATCH_SIZE {
+            if self.in_waiting.len() >= self.batch_size {
                 break Ok(());
             }
         }
