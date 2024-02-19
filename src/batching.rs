@@ -93,6 +93,8 @@ impl Executor {
 
         let policy = tensors[0].unwrap_f32().unwrap();
         let value = tensors[1].unwrap_f32().unwrap();
+        println!("policy: {:?}", policy);
+        println!("value: {:?}", value);
         for (batch_index, pipe_index) in indices.into_iter().enumerate() {
             let policy_vec = policy.slice(s![batch_index, ..]).to_vec();
             let value = value[[batch_index]];
