@@ -3,7 +3,7 @@ use std::{io::{Write, BufWriter}, fs::File};
 use gomokugen::board::{Board, Move, Player};
 use kn_graph::optimizer::OptimizerSettings;
 
-use crate::{batching, engine::{Engine, SearchResults}, params::Params, BOARD_SIZE};
+use crate::{batching::{self, ExecutorHandle}, engine::{Engine, SearchResults}, params::Params, BOARD_SIZE};
 
 struct GameRecord {
     root: Board<BOARD_SIZE>,
@@ -11,20 +11,12 @@ struct GameRecord {
     outcome: Option<Player>,
 }
 
-fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize) {
-    // Load an onnx file into a Graph.
-    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./new-model.onnx", false).unwrap();
-    // Optimise the graph.
-    let graph = kn_graph::optimizer::optimize_graph(&raw_graph, OptimizerSettings::default());
-    // Deallocate the raw graph.
-    std::mem::drop(raw_graph);
-
-    let executor_handles = batching::executor(&graph);
+fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, executor: ExecutorHandle) {
 
     let default_params = Params::default();
     let default_limits = "nodes 800".parse().unwrap();
     let starting_position = Board::new();
-    let mut engine = Engine::new(default_params, default_limits, &starting_position, &graph, executor_handles.into_iter().next().unwrap());
+    let mut engine = Engine::new(default_params, default_limits, &starting_position, executor);
 
     let start_time = std::time::Instant::now();
 
@@ -112,10 +104,19 @@ pub fn run_data_generation(time_allocated_millis: u128) {
     println!("Running data generation with {num_threads} threads");
     let mut threads = Vec::new();
 
-    for thread_id in 0..num_threads {
+    // Load an onnx file into a Graph.
+    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./new-model.onnx", false).unwrap();
+    // Optimise the graph.
+    let graph = kn_graph::optimizer::optimize_graph(&raw_graph, OptimizerSettings::default());
+    // Deallocate the raw graph.
+    std::mem::drop(raw_graph);
+
+    let executor_handles = batching::executor(&graph, num_threads);
+
+    for (thread_id, executor) in executor_handles.into_iter().enumerate() {
         let save_folder = save_folder.clone();
         threads.push(std::thread::spawn(move || {
-            thread_fn(time_allocated_millis, &save_folder, thread_id);
+            thread_fn(time_allocated_millis, &save_folder, thread_id, executor);
         }));
     }
 

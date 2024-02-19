@@ -1,11 +1,6 @@
 use std::{sync::atomic::Ordering, time::Instant};
 use std::io::Write;
 use gomokugen::board::{Board, Move, Player};
-use kn_graph::{
-    dtype::{DTensor, Tensor},
-    graph::Graph,
-    ndarray::IxDyn,
-};
 use log::{trace, debug};
 
 use crate::{arena::Handle, batching::ExecutorHandle, node::Node, params::Params, timemgmt::Limits, ugi, BOARD_SIZE};
@@ -27,8 +22,6 @@ pub struct Engine<'a> {
     tree: Vec<Node>,
     /// The root position.
     root: Board<BOARD_SIZE>,
-    /// The policy network.
-    nn_policy: &'a Graph,
     /// Interface to the CUDA executor.
     eval_pipe: ExecutorHandle,
 }
@@ -51,7 +44,6 @@ impl<'a> Engine<'a> {
         params: Params<'a>,
         limits: Limits,
         root: &Board<BOARD_SIZE>,
-        nn_policy: &'a Graph,
         eval_pipe: ExecutorHandle,
     ) -> Self {
         Self {
@@ -59,7 +51,6 @@ impl<'a> Engine<'a> {
             limits,
             tree: Vec::new(),
             root: *root,
-            nn_policy,
             eval_pipe,
         }
     }
@@ -95,7 +86,6 @@ impl<'a> Engine<'a> {
             &mut self.tree,
             &self.params,
             &self.limits,
-            self.nn_policy,
         );
 
         let best_move = self.tree[0].best_move(&self.tree);
@@ -108,47 +98,6 @@ impl<'a> Engine<'a> {
         }
     }
 
-    /// Evaluates the policy network on a position.
-    fn generate_policy(executor: &ExecutorHandle, graph: &kn_graph::graph::Graph, board: &Board<BOARD_SIZE>, cpu: bool) -> Vec<f32> {
-        // return vec![1.0; BOARD_SIZE.pow(2)];
-        if cpu {
-            Self::generate_policy_cpu(graph, board)
-        } else {
-            Self::generate_policy_cuda(executor, board)
-        }
-    }
-    fn generate_policy_cpu(graph: &kn_graph::graph::Graph, board: &Board<BOARD_SIZE>) -> Vec<f32> {
-        // build inputs
-        let batch_size = 1;
-        // inputs are a 162 1-D element vector
-        let mut tensor = Tensor::zeros(IxDyn(&[batch_size, 162]));
-        // set the input data from the board state
-        let to_move = board.turn();
-        board.feature_map(|i, c| {
-            let index = i + usize::from(c != to_move) * 81;
-            tensor[[0, index]] = 1.0;
-        });
-        let inputs = [DTensor::F32(tensor)];
-
-        // evaluate the graph on this input
-        let tensors = kn_graph::cpu::cpu_eval_graph(graph, batch_size, &inputs);
-        assert_eq!(tensors.len(), 1);
-
-        // get the output as a vector
-        tensors[0]
-            .unwrap_f32()
-            .unwrap()
-            .as_slice()
-            .unwrap()
-            .to_vec()
-    }
-    fn generate_policy_cuda(executor: &ExecutorHandle, board: &Board<9>) -> Vec<f32> {
-        // send the board to the executor
-        executor.sender.send(*board).expect("failed to send board to executor");
-        // wait for the result
-        executor.receiver.recv().expect("failed to receive tensor from executor").0
-    }
-
     /// Repeat the search loop until the time limit is reached.
     fn search(
         executor: &ExecutorHandle,
@@ -156,7 +105,6 @@ impl<'a> Engine<'a> {
         tree: &mut Vec<Node>,
         params: &Params,
         limits: &Limits,
-        nn_policy: &Graph,
     ) {
         #![allow(clippy::cast_precision_loss)]
         trace!("Engine::search(root, tree, params, limits)");
@@ -168,7 +116,10 @@ impl<'a> Engine<'a> {
         if tree.is_empty() {
             // create the root node
             tree.push(Node::new(Handle::null(), 0));
-            let policy = Self::generate_policy(executor, nn_policy, root, false);
+            // send the root to the executor
+            executor.sender.send(*root).expect("failed to send board to executor");
+            // wait for the result
+            let (policy, _value) = executor.receiver.recv().expect("failed to receive value from executor");
             tree[0].expand(*root, &policy);
         }
 
