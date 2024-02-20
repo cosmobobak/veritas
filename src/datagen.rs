@@ -2,6 +2,7 @@ use std::{io::{Write, BufWriter}, fs::File};
 
 use gomokugen::board::{Board, Move, Player};
 use kn_graph::optimizer::OptimizerSettings;
+use rand::{seq::SliceRandom, Rng as _};
 
 use crate::{batching::{self, ExecutorHandle}, engine::{Engine, SearchResults}, params::Params, BOARD_SIZE};
 
@@ -12,11 +13,12 @@ struct GameRecord {
 }
 
 fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, executor: ExecutorHandle) {
-
     let default_params = Params::default();
     let default_limits = "nodes 800".parse().unwrap();
     let starting_position = Board::new();
     let mut engine = Engine::new(default_params, default_limits, &starting_position, executor);
+
+    let mut rng = rand::thread_rng();
 
     let start_time = std::time::Instant::now();
 
@@ -33,6 +35,12 @@ fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, e
         }
 
         let mut board = Board::new();
+        for _ in 0..8 + rng.gen_range(0..=1) {
+            let mut moves = Vec::new();
+            board.generate_moves(|mv| { moves.push(mv); false });
+            let Some(&mv) = moves.choose(&mut rng) else { continue; };
+            board.make_move(mv);
+        }
         let mut game = GameRecord {
             root: board,
             move_list: Vec::new(),

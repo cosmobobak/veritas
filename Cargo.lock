@@ -993,6 +993,7 @@ dependencies = [
  "kn-cuda-sys",
  "kn-graph",
  "log",
+ "rand",
  "smallvec",
 ]
 
