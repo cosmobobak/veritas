@@ -133,7 +133,8 @@ pub fn run_data_generation(num_threads: usize, time_allocated_millis: u128) {
     }
 
     for thread in threads {
-        thread.join().unwrap();
+        // we don't care if the thread panicked
+        let _ = thread.join();
     }
 
     println!("Data generation complete! (saved to {save_folder})");
