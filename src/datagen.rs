@@ -138,4 +138,5 @@ pub fn run_data_generation(num_threads: usize, time_allocated_millis: u128) {
     }
 
     println!("Data generation complete! (saved to {save_folder})");
+    println!("Generated {} games.", GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed));
 }
