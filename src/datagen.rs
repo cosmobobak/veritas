@@ -33,6 +33,7 @@ fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, e
 
         if thread_id == 0 {
             print!("\rGenerated {} games", GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed));
+            std::io::stdout().flush().unwrap();
         }
 
         let mut board = Board::new();
