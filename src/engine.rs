@@ -1,9 +1,12 @@
-use std::{sync::atomic::Ordering, time::Instant};
-use std::io::Write;
 use gomokugen::board::{Board, Move, Player};
-use log::{trace, debug};
+use log::{debug, trace};
+// use std::io::Write;
+use std::{sync::atomic::Ordering, time::Instant};
 
-use crate::{arena::Handle, batching::ExecutorHandle, node::Node, params::Params, timemgmt::Limits, ugi, BOARD_SIZE};
+use crate::{
+    arena::Handle, batching::ExecutorHandle, node::Node, params::Params, timemgmt::Limits, ugi,
+    BOARD_SIZE,
+};
 
 pub struct SearchResults {
     /// The best move found.
@@ -117,9 +120,15 @@ impl<'a> Engine<'a> {
             // create the root node
             tree.push(Node::new(Handle::null(), 0));
             // send the root to the executor
-            executor.sender.send(*root).expect("failed to send board to executor");
+            executor
+                .sender
+                .send(*root)
+                .expect("failed to send board to executor");
             // wait for the result
-            let (policy, _value) = executor.receiver.recv().expect("failed to receive value from executor");
+            let (policy, _value) = executor
+                .receiver
+                .recv()
+                .expect("failed to receive value from executor");
             tree[0].expand(*root, &policy);
         }
 
@@ -174,7 +183,11 @@ impl<'a> Engine<'a> {
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
     fn do_sesb(
-        executor: &ExecutorHandle,root: &Board<BOARD_SIZE>, tree: &mut Vec<Node>, params: &Params) {
+        executor: &ExecutorHandle,
+        root: &Board<BOARD_SIZE>,
+        tree: &mut Vec<Node>,
+        params: &Params,
+    ) {
         trace!("Engine::do_sesb(root, tree, params)");
 
         // select
@@ -196,9 +209,15 @@ impl<'a> Engine<'a> {
 
                 // simulate
                 // send the board to the executor
-                executor.sender.send(board_state).expect("failed to send board to executor");
+                executor
+                    .sender
+                    .send(board_state)
+                    .expect("failed to send board to executor");
                 // wait for the result
-                let (policy, value) = executor.receiver.recv().expect("failed to receive value from executor");
+                let (policy, value) = executor
+                    .receiver
+                    .recv()
+                    .expect("failed to receive value from executor");
 
                 // expand this node
                 tree[new_node.index()].expand(board_state, &policy);
@@ -290,7 +309,11 @@ impl<'a> Engine<'a> {
                 break;
             }
             let (edge_idx, child_idx) = Self::rollouts_best(tree, node_idx.index());
-            let Some(edge) = tree[node_idx.index()].edges().expect("node has no edges").get(edge_idx) else {
+            let Some(edge) = tree[node_idx.index()]
+                .edges()
+                .expect("node has no edges")
+                .get(edge_idx)
+            else {
                 break;
             };
             let best_move = edge.get_move(false);
@@ -397,7 +420,10 @@ impl<'a> Engine<'a> {
                 }
             } else {
                 let value = edges[idx].probability();
-                trace!(" [dangling] edge = {idx}, value = {value}, p(edge) = {}", edges[idx].probability());
+                trace!(
+                    " [dangling] edge = {idx}, value = {value}, p(edge) = {}",
+                    edges[idx].probability()
+                );
                 if value > best_value {
                     best_idx = idx;
                     best_value = value;

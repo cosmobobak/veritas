@@ -4,6 +4,8 @@
 //! Veritas, a UGI-conformant MCTS-PUCT engine.
 
 mod arena;
+mod batching;
+mod datagen;
 mod debug;
 mod engine;
 mod game;
@@ -11,8 +13,6 @@ mod node;
 mod params;
 mod timemgmt;
 mod ugi;
-mod datagen;
-mod batching;
 
 /// The name of the engine.
 pub static NAME: &str = "Veritas";

@@ -1,16 +1,23 @@
 //! The Universal Game Interface (UGI) implementation.
 
-use std::{sync::{
-    atomic::{AtomicBool, Ordering},
-    mpsc, Mutex,
-}, ops::ControlFlow};
+use std::{
+    ops::ControlFlow,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Mutex,
+    },
+};
 
 use gomokugen::board::{Board, Player};
 use kn_graph::optimizer::OptimizerSettings;
 use log::info;
 
 use crate::{
-    batching, engine::{Engine, SearchResults}, params::Params, timemgmt::Limits, NAME, VERSION
+    batching,
+    engine::{Engine, SearchResults},
+    params::Params,
+    timemgmt::Limits,
+    NAME, VERSION,
 };
 
 fn stdin_reader() -> mpsc::Receiver<String> {
@@ -79,7 +86,12 @@ pub fn main_loop() {
     let default_params = Params::default().with_stdin_rx(&stdin).with_stdout(true);
     let default_limits = Limits::default();
     let starting_position = Board::new();
-    let mut engine = Engine::new(default_params, default_limits, &starting_position, executor_handles.into_iter().next().unwrap());
+    let mut engine = Engine::new(
+        default_params,
+        default_limits,
+        &starting_position,
+        executor_handles.into_iter().next().unwrap(),
+    );
 
     loop {
         std::io::Write::flush(&mut std::io::stdout()).expect("couldn't flush stdout");
@@ -162,7 +174,9 @@ pub fn main_loop() {
                 }
             }
             set_option if set_option.starts_with("setoption ") => {
-                let mut words = set_option.trim_start_matches("setoption ").split_ascii_whitespace();
+                let mut words = set_option
+                    .trim_start_matches("setoption ")
+                    .split_ascii_whitespace();
                 words.next(); // "name"
                 let Ok(name) = words.next().ok_or(()) else {
                     println!("info string invalid setoption command");
@@ -231,15 +245,13 @@ fn parse_position(set_position: &str, engine: &mut Engine<'_>) -> ControlFlow<()
         );
     let mut board = match board_part {
         "startpos" => Board::new(),
-        fen if fen.starts_with("fen ") => {
-            match fen.trim_start_matches("fen ").trim().parse() {
-                Ok(board) => board,
-                Err(e) => {
-                    println!("info string invalid fen \"{fen}\": {e}");
-                    return ControlFlow::Break(());
-                }
+        fen if fen.starts_with("fen ") => match fen.trim_start_matches("fen ").trim().parse() {
+            Ok(board) => board,
+            Err(e) => {
+                println!("info string invalid fen \"{fen}\": {e}");
+                return ControlFlow::Break(());
             }
-        }
+        },
         _ => {
             println!("info string invalid position command");
             return ControlFlow::Break(());

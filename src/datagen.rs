@@ -1,10 +1,19 @@
-use std::{fs::File, io::{BufWriter, Write}, sync::atomic::AtomicUsize};
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+    sync::atomic::AtomicUsize,
+};
 
 use gomokugen::board::{Board, Move, Player};
 use kn_graph::optimizer::OptimizerSettings;
 use rand::{seq::SliceRandom, Rng as _};
 
-use crate::{batching::{self, ExecutorHandle}, engine::{Engine, SearchResults}, params::Params, BOARD_SIZE};
+use crate::{
+    batching::{self, ExecutorHandle},
+    engine::{Engine, SearchResults},
+    params::Params,
+    BOARD_SIZE,
+};
 
 struct GameRecord {
     root: Board<BOARD_SIZE>,
@@ -13,8 +22,17 @@ struct GameRecord {
 }
 
 static GAMES_GENERATED: AtomicUsize = AtomicUsize::new(0);
+static POSITIONS_GENERATED: AtomicUsize = AtomicUsize::new(0);
 
-fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, executor: ExecutorHandle) {
+#[allow(clippy::too_many_lines)]
+fn thread_fn(
+    time_allocated_millis: u128,
+    save_folder: &str,
+    thread_id: usize,
+    executor: ExecutorHandle,
+) {
+    #![allow(clippy::cast_precision_loss)]
+    let start_time = std::time::Instant::now();
     let default_params = Params::default();
     let default_limits = "nodes 800".parse().unwrap();
     let starting_position = Board::new();
@@ -22,25 +40,38 @@ fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, e
 
     let mut rng = rand::thread_rng();
 
-    let start_time = std::time::Instant::now();
-
-    let mut positions = BufWriter::new(File::create(format!("{save_folder}/positions-{thread_id}.csv")).unwrap());
-    let mut policy_tgt = BufWriter::new(File::create(format!("{save_folder}/policy-target-{thread_id}.csv")).unwrap());
-    let mut value_tgt = BufWriter::new(File::create(format!("{save_folder}/value-target-{thread_id}.csv")).unwrap());
+    let mut positions =
+        BufWriter::new(File::create(format!("{save_folder}/positions-{thread_id}.csv")).unwrap());
+    let mut policy_tgt = BufWriter::new(
+        File::create(format!("{save_folder}/policy-target-{thread_id}.csv")).unwrap(),
+    );
+    let mut value_tgt = BufWriter::new(
+        File::create(format!("{save_folder}/value-target-{thread_id}.csv")).unwrap(),
+    );
 
     while start_time.elapsed().as_millis() < time_allocated_millis {
         GAMES_GENERATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
         if thread_id == 0 {
-            print!("\rGenerated {} games", GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed));
+            print!(
+                "\rGenerated {} games at {} pos/sec",
+                GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed),
+                POSITIONS_GENERATED.load(std::sync::atomic::Ordering::Relaxed) as f64
+                    / start_time.elapsed().as_secs_f64()
+            );
             std::io::stdout().flush().unwrap();
         }
 
         let mut board = Board::new();
         for _ in 0..8 + rng.gen_range(0..=1) {
             let mut moves = Vec::new();
-            board.generate_moves(|mv| { moves.push(mv); false });
-            let Some(&mv) = moves.choose(&mut rng) else { continue; };
+            board.generate_moves(|mv| {
+                moves.push(mv);
+                false
+            });
+            let Some(&mv) = moves.choose(&mut rng) else {
+                continue;
+            };
             board.make_move(mv);
         }
         let mut game = GameRecord {
@@ -51,7 +82,10 @@ fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, e
 
         while board.outcome().is_none() {
             engine.set_position(&board);
-            let SearchResults { best_move, root_dist } = engine.go();
+            let SearchResults {
+                best_move,
+                root_dist,
+            } = engine.go();
             assert_eq!(root_dist.len(), BOARD_SIZE * BOARD_SIZE);
             board.make_move(best_move);
             game.move_list.push((best_move, root_dist));
@@ -64,7 +98,12 @@ fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, e
             let mut feature_map = vec![0; 2 * BOARD_SIZE * BOARD_SIZE];
             let to_move = board.turn();
             board.feature_map(|index, side| {
-                let index = index + if side == to_move { 0 } else { BOARD_SIZE * BOARD_SIZE };
+                let index = index
+                    + if side == to_move {
+                        0
+                    } else {
+                        BOARD_SIZE * BOARD_SIZE
+                    };
                 feature_map[index] = 1;
             });
             // write out the position
@@ -97,6 +136,7 @@ fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, e
             };
             writeln!(value_tgt, "{value_target}").unwrap();
             board.make_move(best_move);
+            POSITIONS_GENERATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
 
         positions.flush().unwrap();
@@ -138,5 +178,8 @@ pub fn run_data_generation(num_threads: usize, time_allocated_millis: u128) {
     }
 
     println!("Data generation complete! (saved to {save_folder})");
-    println!("Generated {} games.", GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed));
+    println!(
+        "Generated {} games.",
+        GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed)
+    );
 }
