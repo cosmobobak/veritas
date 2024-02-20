@@ -140,7 +140,7 @@ impl<'a> Engine<'a> {
                         nodes_searched as f64 / (elapsed as f64 / 1000.0),
                         tree[0].winrate() * 100.0
                     );
-                    Self::print_pv(root, tree, params);
+                    Self::print_pv(root, tree);
                 }
                 elapsed =
                     u64::try_from(start_time.elapsed().as_millis()).expect("elapsed time overflow");
@@ -282,15 +282,17 @@ impl<'a> Engine<'a> {
     }
 
     /// Prints out the current line of best play.
-    pub fn print_pv(root: &Board<BOARD_SIZE>, tree: &[Node], params: &Params) {
+    pub fn print_pv(root: &Board<BOARD_SIZE>, tree: &[Node]) {
         let mut node_idx = Handle::from_index(0, tree);
         let mut pos = *root;
         while !node_idx.is_null() {
             if tree[node_idx.index()].edges().is_none() {
                 break;
             }
-            let (edge_idx, child_idx) = Self::uct_best(tree, params, node_idx.index());
-            let edge = &tree[node_idx.index()].edges().unwrap()[edge_idx];
+            let (edge_idx, child_idx) = Self::rollouts_best(tree, node_idx.index());
+            let Some(edge) = tree[node_idx.index()].edges().expect("node has no edges").get(edge_idx) else {
+                break;
+            };
             let best_move = edge.get_move(false);
             print!(" {best_move}");
             pos.make_move(best_move);
@@ -348,6 +350,54 @@ impl<'a> Engine<'a> {
                 let value =
                     exploration_factor.mul_add(edges[idx].probability(), first_play_urgency);
                 trace!(" [dangling] edge = {idx}, value = {value}, fpu = {first_play_urgency}, p(edge) = {}", edges[idx].probability());
+                if value > best_value {
+                    best_idx = idx;
+                    best_value = value;
+                    best_child = Handle::null();
+                }
+            }
+        }
+
+        (best_idx, best_child)
+    }
+
+    /// Selects the best immediate edge of a node according to rollout count.
+    /// Returns the index of the edge, and a nullable handle to the child.
+    fn rollouts_best(tree: &[Node], node_idx: usize) -> (usize, Handle) {
+        trace!("Engine::rollouts_best(tree, params, node_idx = {node_idx})");
+
+        let node = &tree[node_idx];
+
+        let mut best_idx = 0;
+        let mut best_value = f64::NEG_INFINITY;
+        let mut best_child = Handle::null();
+
+        let edges = node.edges().unwrap_or_else(|| {
+            panic!("attempted to select the best edge of an unexpanded node. node = {node:?}");
+        });
+        let mut child = node.first_child();
+
+        // This is slightly problematic because we have to do linked list stuff where
+        // only some of the edges have corresponding nodes.
+        // The simplest solution is just to have an array that we fill in.
+        let mut values = [None; BOARD_SIZE * BOARD_SIZE];
+        while !child.is_null() {
+            let node = &tree[child.index()];
+            let r = node.visits();
+            values[node.edge_index()] = Some((child, f64::from(r)));
+            child = node.sibling();
+        }
+        for (idx, value) in values.into_iter().take(edges.len()).enumerate() {
+            if let Some((handle, value)) = value {
+                trace!(" [expanded] edge = {idx}, value = {value}");
+                if value > best_value {
+                    best_idx = idx;
+                    best_value = value;
+                    best_child = handle;
+                }
+            } else {
+                let value = edges[idx].probability();
+                trace!(" [dangling] edge = {idx}, value = {value}, p(edge) = {}", edges[idx].probability());
                 if value > best_value {
                     best_idx = idx;
                     best_value = value;
