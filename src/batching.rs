@@ -38,8 +38,8 @@ impl Executor {
         let mut eval_pipes = Vec::new();
         let mut handles = Vec::new();
         for _ in 0..num_pipes {
-            let (board_sender, board_receiver) = crossbeam::channel::bounded(batch_size);
-            let (eval_sender, eval_receiver) = crossbeam::channel::bounded(batch_size);
+            let (board_sender, board_receiver) = crossbeam::channel::bounded(1);
+            let (eval_sender, eval_receiver) = crossbeam::channel::bounded(1);
             eval_pipes.push(EvalPipe {
                 sender: eval_sender,
                 receiver: board_receiver,
