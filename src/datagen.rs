@@ -1,4 +1,4 @@
-use std::{io::{Write, BufWriter}, fs::File};
+use std::{fs::File, io::{BufWriter, Write}, sync::atomic::AtomicUsize};
 
 use gomokugen::board::{Board, Move, Player};
 use kn_graph::optimizer::OptimizerSettings;
@@ -11,6 +11,8 @@ struct GameRecord {
     move_list: Vec<(Move<BOARD_SIZE>, Vec<u64>)>,
     outcome: Option<Player>,
 }
+
+static GAMES_GENERATED: AtomicUsize = AtomicUsize::new(0);
 
 fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, executor: ExecutorHandle) {
     let default_params = Params::default();
@@ -26,12 +28,11 @@ fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, e
     let mut policy_tgt = BufWriter::new(File::create(format!("{save_folder}/policy-target-{thread_id}.csv")).unwrap());
     let mut value_tgt = BufWriter::new(File::create(format!("{save_folder}/value-target-{thread_id}.csv")).unwrap());
 
-    let mut iterations = 0;
     while start_time.elapsed().as_millis() < time_allocated_millis {
-        iterations += 1;
+        GAMES_GENERATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-        if iterations % 128 == 0 {
-            println!("Thread {thread_id} has completed {iterations} iterations");
+        if thread_id == 0 {
+            print!("\rGenerated {} games", GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed));
         }
 
         let mut board = Board::new();
@@ -101,6 +102,9 @@ fn thread_fn(time_allocated_millis: u128, save_folder: &str, thread_id: usize, e
         policy_tgt.flush().unwrap();
         value_tgt.flush().unwrap();
     }
+    if thread_id == 0 {
+        println!();
+    }
 }
 
 pub fn run_data_generation(num_threads: usize, time_allocated_millis: u128) {
@@ -130,4 +134,6 @@ pub fn run_data_generation(num_threads: usize, time_allocated_millis: u128) {
     for thread in threads {
         thread.join().unwrap();
     }
+
+    println!("Data generation complete! (saved to {save_folder})");
 }
