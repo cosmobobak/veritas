@@ -1,14 +1,16 @@
 use std::alloc::Layout;
 
-use gomokugen::board::{Board, Move, Player};
 use smallvec::SmallVec;
 
-use crate::{arena::Handle, BOARD_SIZE};
+use crate::{
+    arena::Handle,
+    game::{GameImpl, MovePolicyIndex, Player},
+};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub struct Edge {
+pub struct Edge<G: GameImpl> {
     // Move corresponding to this node. From the point of view of a player.
-    pov_move: Move<BOARD_SIZE>,
+    pov_move: G::Move,
     // Probability that this move will be made, from the policy head of the neural
     // network. TODO: leela compresses this into a short.
     probability: f32,
@@ -34,10 +36,10 @@ enum GameResult {
     SecondPlayerWin,
 }
 
-impl Edge {
+impl<G: GameImpl> Edge<G> {
     // Returns move from the point of view of the player making it (if as_opponent
     // is false) or as opponent (if as_opponent is true).
-    pub const fn get_move(self, as_opponent: bool) -> Move<BOARD_SIZE> {
+    pub const fn get_move(self, as_opponent: bool) -> G::Move {
         if as_opponent {
             todo!()
         } else {
@@ -51,7 +53,7 @@ impl Edge {
 }
 
 #[derive(Debug)]
-pub struct Node {
+pub struct Node<G: GameImpl> {
     /// Average value (from value head of neural network) of all visited nodes in
     /// subtree. For terminal nodes, eval is stored. This is from the perspective
     /// of the player who "just" moved to reach this position, rather than from the
@@ -60,7 +62,7 @@ pub struct Node {
     wl: f64,
     /// Array of edges from this node.
     /// TODO: store the allocation length out-of-line, as it should fit in a u8.
-    edges: Option<Box<[Edge]>>,
+    edges: Option<Box<[Edge<G>]>>,
     /// Index of the parent node in the tree.
     parent: Handle,
     /// Index to a first child. Null for a leaf node.
@@ -87,7 +89,7 @@ pub struct Node {
     lower_bound: GameResult,
 }
 
-impl Node {
+impl<G: GameImpl> Node<G> {
     /// Creates a new node.
     pub fn new(parent: Handle, edge_index: usize) -> Self {
         let index = edge_index
@@ -111,7 +113,7 @@ impl Node {
     }
 
     /// Returns the move with the most visits, tie-broken by policy.
-    pub fn best_move(&self, tree: &[Self]) -> Move<BOARD_SIZE> {
+    pub fn best_move(&self, tree: &[Self]) -> G::Move {
         log::trace!("Node::best_move(self, tree) (self.index = {})", self.index);
 
         let mut best_move = None;
@@ -138,12 +140,12 @@ impl Node {
 
     /// Returns the distribution of visits to the children of this node.
     pub fn dist(&self, tree: &[Self]) -> Vec<u64> {
-        let mut dist = vec![0; BOARD_SIZE * BOARD_SIZE];
+        let mut dist = vec![0; G::POLICY_DIM];
         let mut edge = self.child;
         while !edge.is_null() {
             let move_index = self.edges.as_ref().unwrap()[tree[edge.index()].edge_index()]
                 .get_move(false)
-                .index();
+                .policy_index();
             let visits = u64::from(tree[edge.index()].visits);
             dist[move_index] = visits;
             edge = tree[edge.index()].sibling;
@@ -168,7 +170,7 @@ impl Node {
     }
 
     /// Returns a reference to the edges of this node.
-    pub fn edges(&self) -> Option<&[Edge]> {
+    pub fn edges(&self) -> Option<&[Edge<G>]> {
         self.edges.as_deref()
     }
 
@@ -207,11 +209,12 @@ impl Node {
     }
 
     /// Expands this node, adding the legal moves and their policies.
-    pub fn expand(&mut self, pos: Board<BOARD_SIZE>, policy: &[f32]) {
-        let mut moves = SmallVec::<[Edge; BOARD_SIZE * BOARD_SIZE]>::new();
+    pub fn expand(&mut self, pos: G, policy: &[f32]) {
+        // TODO: FIX GENERIC SIZE SOMEHOW
+        let mut moves = SmallVec::<[Edge<G>; 81]>::new();
         let mut max_logit = -1000.0;
         pos.generate_moves(|m| {
-            let logit = policy[m.index()];
+            let logit = policy[m.policy_index()];
             if logit > max_logit {
                 max_logit = logit;
             }
@@ -242,10 +245,10 @@ impl Node {
 
         // allocate the edge list and copy the moves into it
         unsafe {
-            let layout = Layout::array::<Edge>(moves.len()).unwrap();
+            let layout = Layout::array::<Edge<G>>(moves.len()).unwrap();
             // cast_ptr_alignment is fine because we're allocating using the Edge layout
             #[allow(clippy::cast_ptr_alignment)]
-            let ptr = std::alloc::alloc(layout).cast::<Edge>();
+            let ptr = std::alloc::alloc(layout).cast::<Edge<G>>();
             if ptr.is_null() {
                 std::alloc::handle_alloc_error(layout);
             }
@@ -259,21 +262,21 @@ impl Node {
             self.terminal_type = Terminal::Terminal;
             let game_result = match result {
                 Player::None => GameResult::Draw,
-                Player::X => GameResult::FirstPlayerWin,
-                Player::O => GameResult::SecondPlayerWin,
+                Player::First => GameResult::FirstPlayerWin,
+                Player::Second => GameResult::SecondPlayerWin,
             };
             self.upper_bound = game_result;
             self.lower_bound = game_result;
         }
     }
 
-    pub fn check_game_over(&mut self, pos: &Board<BOARD_SIZE>) {
+    pub fn check_game_over(&mut self, pos: &G) {
         if let Some(result) = pos.outcome() {
             self.terminal_type = Terminal::Terminal;
             let game_result = match result {
                 Player::None => GameResult::Draw,
-                Player::X => GameResult::FirstPlayerWin,
-                Player::O => GameResult::SecondPlayerWin,
+                Player::First => GameResult::FirstPlayerWin,
+                Player::Second => GameResult::SecondPlayerWin,
             };
             self.upper_bound = game_result;
             self.lower_bound = game_result;

@@ -8,13 +8,13 @@ use std::{
     },
 };
 
-use gomokugen::board::{Board, Player};
 use kn_graph::optimizer::OptimizerSettings;
 use log::info;
 
 use crate::{
     batching,
     engine::{Engine, SearchResults},
+    game::{GameImpl, Player},
     params::Params,
     timemgmt::Limits,
     NAME, VERSION,
@@ -64,7 +64,7 @@ fn stdin_reader_worker(sender: mpsc::Sender<String>) {
 
 /// The main loop of the Universal Game Interface (UGI).
 #[allow(clippy::too_many_lines)]
-pub fn main_loop() {
+pub fn main_loop<G: GameImpl>() {
     let stdin = Mutex::new(stdin_reader());
 
     let version_extension = if cfg!(feature = "final-release") {
@@ -85,7 +85,7 @@ pub fn main_loop() {
 
     let default_params = Params::default().with_stdin_rx(&stdin).with_stdout(true);
     let default_limits = Limits::default();
-    let starting_position = Board::new();
+    let starting_position = G::default();
     let mut engine = Engine::new(
         default_params,
         default_limits,
@@ -131,14 +131,14 @@ pub fn main_loop() {
                     println!("response {}", engine.root().outcome().is_some());
                 }
                 "p1turn" => {
-                    println!("response {}", engine.root().turn() == Player::X);
+                    println!("response {}", engine.root().to_move() == Player::First);
                 }
                 "result" => {
                     println!(
                         "response {}",
                         match engine.root().outcome() {
-                            Some(Player::X) => "p1win",
-                            Some(Player::O) => "p2win",
+                            Some(Player::First) => "p1win",
+                            Some(Player::Second) => "p2win",
                             Some(Player::None) => "draw",
                             None => "none",
                         }
@@ -209,13 +209,10 @@ pub fn main_loop() {
     STDIN_READER_THREAD_KEEP_RUNNING.store(false, Ordering::SeqCst);
 }
 
-fn make_move_on_engine(play: &str, engine: &mut Engine<'_>) -> ControlFlow<()> {
-    let mv = match play.trim_start_matches("play ").trim().parse() {
-        Ok(mv) => mv,
-        Err(e) => {
-            println!("info string invalid move \"{play}\": {e}");
-            return ControlFlow::Break(());
-        }
+fn make_move_on_engine<G: GameImpl>(play: &str, engine: &mut Engine<'_, G>) -> ControlFlow<()> {
+    let Ok(mv) = play.trim_start_matches("play ").trim().parse() else {
+        println!("info string invalid move \"{play}\"");
+        return ControlFlow::Break(());
     };
     let mut root = engine.root();
     let mut move_legal = false;
@@ -234,7 +231,7 @@ fn make_move_on_engine(play: &str, engine: &mut Engine<'_>) -> ControlFlow<()> {
     ControlFlow::Continue(())
 }
 
-fn parse_position(set_position: &str, engine: &mut Engine<'_>) -> ControlFlow<()> {
+fn parse_position<G: GameImpl>(set_position: &str, engine: &mut Engine<'_, G>) -> ControlFlow<()> {
     let (board_part, moves_part) = set_position
         .trim_start_matches("position ")
         .trim()
@@ -244,28 +241,26 @@ fn parse_position(set_position: &str, engine: &mut Engine<'_>) -> ControlFlow<()
             |(board_part, moves_part)| (board_part.trim(), moves_part.trim()),
         );
     let mut board = match board_part {
-        "startpos" => Board::new(),
-        fen if fen.starts_with("fen ") => match fen.trim_start_matches("fen ").trim().parse() {
-            Ok(board) => board,
-            Err(e) => {
-                println!("info string invalid fen \"{fen}\": {e}");
+        "startpos" => G::default(),
+        fen if fen.starts_with("fen ") => {
+            if let Ok(board) = fen.trim_start_matches("fen ").trim().parse() {
+                board
+            } else {
+                println!("info string invalid fen \"{fen}\"");
                 return ControlFlow::Break(());
             }
-        },
+        }
         _ => {
             println!("info string invalid position command");
             return ControlFlow::Break(());
         }
     };
     for mv in moves_part.split_ascii_whitespace() {
-        match mv.parse() {
-            Ok(mv) => {
-                board.make_move(mv);
-            }
-            Err(e) => {
-                println!("info string invalid move \"{mv}\": {e}");
-                continue;
-            }
+        if let Ok(mv) = mv.parse() {
+            board.make_move(mv);
+        } else {
+            println!("info string invalid move \"{mv}\"");
+            continue;
         }
     }
     engine.set_position(&board);
