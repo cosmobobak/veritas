@@ -4,20 +4,19 @@ use std::{
     sync::atomic::AtomicUsize,
 };
 
-use gomokugen::board::{Board, Move, Player};
-use kn_graph::optimizer::OptimizerSettings;
+use kn_graph::{ndarray::Dimension, optimizer::OptimizerSettings};
 use rand::{seq::SliceRandom, Rng as _};
 
 use crate::{
     batching::{self, ExecutorHandle},
     engine::{Engine, SearchResults},
+    game::{GameImpl, Player},
     params::Params,
-    BOARD_SIZE,
 };
 
-struct GameRecord {
-    root: Board<BOARD_SIZE>,
-    move_list: Vec<(Move<BOARD_SIZE>, Vec<u64>)>,
+struct GameRecord<G: GameImpl> {
+    root: G,
+    move_list: Vec<(G::Move, Vec<u64>)>,
     outcome: Option<Player>,
 }
 
@@ -25,17 +24,17 @@ static GAMES_GENERATED: AtomicUsize = AtomicUsize::new(0);
 static POSITIONS_GENERATED: AtomicUsize = AtomicUsize::new(0);
 
 #[allow(clippy::too_many_lines)]
-fn thread_fn(
+fn thread_fn<G: GameImpl>(
     time_allocated_millis: u128,
     save_folder: &str,
     thread_id: usize,
-    executor: ExecutorHandle,
+    executor: ExecutorHandle<G>,
 ) {
     #![allow(clippy::cast_precision_loss)]
     let start_time = std::time::Instant::now();
     let default_params = Params::default();
     let default_limits = "nodes 800".parse().unwrap();
-    let starting_position = Board::new();
+    let starting_position = G::default();
     let mut engine = Engine::new(default_params, default_limits, &starting_position, executor);
 
     let mut rng = rand::thread_rng();
@@ -62,7 +61,7 @@ fn thread_fn(
             std::io::stdout().flush().unwrap();
         }
 
-        let mut board = Board::new();
+        let mut board = G::default();
         for _ in 0..8 + rng.gen_range(0..=1) {
             let mut moves = Vec::new();
             board.generate_moves(|mv| {
@@ -86,7 +85,7 @@ fn thread_fn(
                 best_move,
                 root_dist,
             } = engine.go();
-            assert_eq!(root_dist.len(), BOARD_SIZE * BOARD_SIZE);
+            assert_eq!(root_dist.len(), G::POLICY_DIM);
             board.make_move(best_move);
             game.move_list.push((best_move, root_dist));
         }
@@ -95,15 +94,10 @@ fn thread_fn(
 
         let mut board = game.root;
         for (best_move, root_dist) in game.move_list {
-            let mut feature_map = vec![0; 2 * BOARD_SIZE * BOARD_SIZE];
-            let to_move = board.turn();
-            board.feature_map(|index, side| {
-                let index = index
-                    + if side == to_move {
-                        0
-                    } else {
-                        BOARD_SIZE * BOARD_SIZE
-                    };
+            let ixdyn = G::tensor_dims(1);
+            let mut feature_map = vec![0; ixdyn.size()];
+            let to_move = board.to_move();
+            board.fill_feature_map(|index| {
                 feature_map[index] = 1;
             });
             // write out the position
@@ -148,7 +142,7 @@ fn thread_fn(
     }
 }
 
-pub fn run_data_generation(num_threads: usize, time_allocated_millis: u128) {
+pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_millis: u128) {
     let date = chrono::Local::now().format("%Y-%m-%d-%H-%M-%S");
     let save_folder = format!("data/{date}");
     std::fs::create_dir_all(&save_folder).unwrap();
@@ -163,7 +157,7 @@ pub fn run_data_generation(num_threads: usize, time_allocated_millis: u128) {
     // Deallocate the raw graph.
     std::mem::drop(raw_graph);
 
-    let executor_handles = batching::executor(&graph, num_threads);
+    let executor_handles = batching::executor::<G>(&graph, num_threads);
 
     for (thread_id, executor) in executor_handles.into_iter().enumerate() {
         let save_folder = save_folder.clone();

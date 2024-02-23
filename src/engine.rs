@@ -1,53 +1,58 @@
-use gomokugen::board::{Board, Move, Player};
+// use gomokugen::board::{Board, Move, Player};
 use log::{debug, trace};
 // use std::io::Write;
 use std::{sync::atomic::Ordering, time::Instant};
 
 use crate::{
-    arena::Handle, batching::ExecutorHandle, node::Node, params::Params, timemgmt::Limits, ugi,
-    BOARD_SIZE,
+    arena::Handle,
+    batching::ExecutorHandle,
+    game::{GameImpl, Player},
+    node::Node,
+    params::Params,
+    timemgmt::Limits,
+    ugi,
 };
 
-pub struct SearchResults {
+pub struct SearchResults<G: GameImpl> {
     /// The best move found.
-    pub best_move: Move<BOARD_SIZE>,
+    pub best_move: G::Move,
     /// The root rollout distribution.
     pub root_dist: Vec<u64>,
 }
 
 /// The MCTS engine's state.
-pub struct Engine<'a> {
+pub struct Engine<'a, G: GameImpl> {
     /// Parameters of the search - exploration factor, c-PUCT, etc.
     params: Params<'a>,
     /// Limits on the search - time, nodes, etc.
     limits: Limits,
     /// The storage for the search tree.
-    tree: Vec<Node>,
+    tree: Vec<Node<G>>,
     /// The root position.
-    root: Board<BOARD_SIZE>,
+    root: G,
     /// Interface to the CUDA executor.
-    eval_pipe: ExecutorHandle,
+    eval_pipe: ExecutorHandle<G>,
 }
 
-enum SelectionResult {
+enum SelectionResult<G: GameImpl> {
     NonTerminal {
         node_index: usize,
         edge_index: usize,
-        board_state: Board<BOARD_SIZE>,
+        board_state: G,
     },
     Terminal {
         node_index: usize,
-        board_state: Board<BOARD_SIZE>,
+        board_state: G,
     },
 }
 
-impl<'a> Engine<'a> {
+impl<'a, G: GameImpl> Engine<'a, G> {
     /// Creates a new engine.
     pub const fn new(
         params: Params<'a>,
         limits: Limits,
-        root: &Board<BOARD_SIZE>,
-        eval_pipe: ExecutorHandle,
+        root: &G,
+        eval_pipe: ExecutorHandle<G>,
     ) -> Self {
         Self {
             params,
@@ -58,7 +63,7 @@ impl<'a> Engine<'a> {
         }
     }
 
-    pub const fn root(&self) -> Board<BOARD_SIZE> {
+    pub const fn root(&self) -> G {
         self.root
     }
 
@@ -74,13 +79,13 @@ impl<'a> Engine<'a> {
 
     /// Sets the position to search from.
     /// This clears the search tree, but could in future be altered to retain some subtree.
-    pub fn set_position(&mut self, root: &Board<BOARD_SIZE>) {
+    pub fn set_position(&mut self, root: &G) {
         self.root = *root;
         self.tree.clear();
     }
 
     /// Runs the engine.
-    pub fn go(&mut self) -> SearchResults {
+    pub fn go(&mut self) -> SearchResults<G> {
         trace!("Engine::go()");
 
         Self::search(
@@ -103,9 +108,9 @@ impl<'a> Engine<'a> {
 
     /// Repeat the search loop until the time limit is reached.
     fn search(
-        executor: &ExecutorHandle,
-        root: &Board<BOARD_SIZE>,
-        tree: &mut Vec<Node>,
+        executor: &ExecutorHandle<G>,
+        root: &G,
+        tree: &mut Vec<Node<G>>,
         params: &Params,
         limits: &Limits,
     ) {
@@ -182,12 +187,7 @@ impl<'a> Engine<'a> {
     }
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
-    fn do_sesb(
-        executor: &ExecutorHandle,
-        root: &Board<BOARD_SIZE>,
-        tree: &mut Vec<Node>,
-        params: &Params,
-    ) {
+    fn do_sesb(executor: &ExecutorHandle<G>, root: &G, tree: &mut Vec<Node<G>>, params: &Params) {
         trace!("Engine::do_sesb(root, tree, params)");
 
         // select
@@ -235,7 +235,7 @@ impl<'a> Engine<'a> {
                     None => unreachable!("terminal node has no outcome"),
                     Some(Player::None) => 0.5, // draw
                     Some(p) => {
-                        if p == board_state.turn() {
+                        if p == board_state.to_move() {
                             0.0
                         } else {
                             1.0
@@ -251,11 +251,11 @@ impl<'a> Engine<'a> {
     /// Descends the tree, selecting the best node at each step.
     /// Returns the index of a node, and the index of the edge to be expanded.
     fn select(
-        root: &Board<BOARD_SIZE>,
-        tree: &mut [Node],
+        root: &G,
+        tree: &mut [Node<G>],
         params: &Params,
         mut node_idx: usize,
-    ) -> SelectionResult {
+    ) -> SelectionResult<G> {
         trace!("Engine::select(root, tree, params, node_idx = {node_idx})");
 
         let mut pos = *root;
@@ -301,7 +301,7 @@ impl<'a> Engine<'a> {
     }
 
     /// Prints out the current line of best play.
-    pub fn print_pv(root: &Board<BOARD_SIZE>, tree: &[Node]) {
+    pub fn print_pv(root: &G, tree: &[Node<G>]) {
         let mut node_idx = Handle::from_index(0, tree);
         let mut pos = *root;
         while !node_idx.is_null() {
@@ -326,7 +326,7 @@ impl<'a> Engine<'a> {
 
     /// Selects the best immediate edge of a node according to UCT.
     /// Returns the index of the edge, and a nullable handle to the child.
-    fn uct_best(tree: &[Node], params: &Params, node_idx: usize) -> (usize, Handle) {
+    fn uct_best(tree: &[Node<G>], params: &Params, node_idx: usize) -> (usize, Handle) {
         trace!("Engine::uct_best(tree, params, node_idx = {node_idx})");
 
         let node = &tree[node_idx];
@@ -352,7 +352,7 @@ impl<'a> Engine<'a> {
         // This is slightly problematic because we have to do linked list stuff where
         // only some of the edges have corresponding nodes.
         // The simplest solution is just to have an array that we fill in.
-        let mut values = [None; BOARD_SIZE * BOARD_SIZE];
+        let mut values = vec![None; G::POLICY_DIM];
         while !child.is_null() {
             let node = &tree[child.index()];
             let edge = &edges[node.edge_index()];
@@ -386,7 +386,7 @@ impl<'a> Engine<'a> {
 
     /// Selects the best immediate edge of a node according to rollout count.
     /// Returns the index of the edge, and a nullable handle to the child.
-    fn rollouts_best(tree: &[Node], node_idx: usize) -> (usize, Handle) {
+    fn rollouts_best(tree: &[Node<G>], node_idx: usize) -> (usize, Handle) {
         trace!("Engine::rollouts_best(tree, params, node_idx = {node_idx})");
 
         let node = &tree[node_idx];
@@ -403,7 +403,7 @@ impl<'a> Engine<'a> {
         // This is slightly problematic because we have to do linked list stuff where
         // only some of the edges have corresponding nodes.
         // The simplest solution is just to have an array that we fill in.
-        let mut values = [None; BOARD_SIZE * BOARD_SIZE];
+        let mut values = vec![None; G::POLICY_DIM];
         while !child.is_null() {
             let node = &tree[child.index()];
             let r = node.visits();
@@ -437,7 +437,7 @@ impl<'a> Engine<'a> {
 
     /// Expands an edge of a given node, returning a handle to the new node.
     fn expand(
-        tree: &mut Vec<Node>,
+        tree: &mut Vec<Node<G>>,
         _params: &Params,
         node_idx: usize,
         edge_index: usize,
@@ -484,7 +484,7 @@ impl<'a> Engine<'a> {
     }
 
     /// Backpropagates the value up the tree.
-    fn backpropagate(tree: &mut [Node], mut node: Handle, mut value: f64) {
+    fn backpropagate(tree: &mut [Node<G>], mut node: Handle, mut value: f64) {
         trace!("Engine::backpropagate(tree, node, value)");
 
         // backpropagate the value up the tree

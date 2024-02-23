@@ -1,38 +1,37 @@
-use gomokugen::board::Board;
 use kn_cuda_eval::{executor::CudaExecutor, CudaDevice};
 use kn_graph::{
     dtype::{DTensor, Tensor},
     graph::Graph,
-    ndarray::{s, IxDyn},
+    ndarray::s,
 };
 
-use crate::BOARD_SIZE;
+use crate::game::GameImpl;
 
 const EXECUTOR_BATCH_SIZE: usize = 1024;
 
-pub struct ExecutorHandle {
-    pub sender: crossbeam::channel::Sender<Board<BOARD_SIZE>>,
+pub struct ExecutorHandle<G: GameImpl> {
+    pub sender: crossbeam::channel::Sender<G>,
     pub receiver: crossbeam::channel::Receiver<(Vec<f32>, f32)>,
 }
 
-pub struct EvalPipe {
+pub struct EvalPipe<G: GameImpl> {
     pub sender: crossbeam::channel::Sender<(Vec<f32>, f32)>,
-    pub receiver: crossbeam::channel::Receiver<Board<BOARD_SIZE>>,
+    pub receiver: crossbeam::channel::Receiver<G>,
 }
 
-pub struct Executor {
+pub struct Executor<G: GameImpl> {
     internal: CudaExecutor,
-    eval_pipes: Vec<EvalPipe>,
-    in_waiting: Vec<(usize, Board<BOARD_SIZE>)>,
+    eval_pipes: Vec<EvalPipe<G>>,
+    in_waiting: Vec<(usize, G)>,
     batch_size: usize,
 }
 
-impl Executor {
+impl<G: GameImpl> Executor<G> {
     pub fn new(
         cuda_device: CudaDevice,
         num_pipes: usize,
         graph: &Graph,
-    ) -> (Self, Vec<ExecutorHandle>) {
+    ) -> (Self, Vec<ExecutorHandle<G>>) {
         let batch_size = EXECUTOR_BATCH_SIZE.min(num_pipes);
         let internal = CudaExecutor::new(cuda_device, graph, batch_size);
         let mut eval_pipes = Vec::new();
@@ -97,15 +96,12 @@ impl Executor {
         // take the first EXECUTOR_BATCH_SIZE elements from in_waiting,
         // evaluate them, and send the results to the corresponding pipes
         let mut indices = Vec::new();
-        let mut input = Tensor::zeros(IxDyn(&[self.batch_size, 162]));
+        let mut input = Tensor::zeros(G::tensor_dims(self.batch_size));
         for (batch_index, (pipe_index, board)) in
             self.in_waiting.drain(..self.batch_size).enumerate()
         {
-            // TODO: this is really tightly coupled to the board representation
-            // and should be abstracted away.
-            let to_move = board.turn();
-            board.feature_map(|i, c| {
-                let index = i + usize::from(c != to_move) * 81;
+            // fill the slice with the feature map
+            board.fill_feature_map(|index| {
                 input[[batch_index, index]] = 1.0;
             });
             indices.push(pipe_index);
@@ -127,7 +123,7 @@ impl Executor {
 }
 
 /// Starts the executor thread and returns a list of handles to the pipes.
-pub fn executor(graph: &Graph, batch_size: usize) -> Vec<ExecutorHandle> {
+pub fn executor<G: GameImpl>(graph: &Graph, batch_size: usize) -> Vec<ExecutorHandle<G>> {
     let cuda_device = CudaDevice::new(0).unwrap();
     println!("Using device: {}", cuda_device.name());
     let (mut executor, handles) = Executor::new(cuda_device, batch_size, graph);
