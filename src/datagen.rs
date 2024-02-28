@@ -74,7 +74,7 @@ fn thread_fn<G: GameImpl>(
             board.make_move(mv);
         }
         let mut game = GameRecord {
-            root: board,
+            root: board.clone(),
             move_list: Vec::new(),
             outcome: None,
         };

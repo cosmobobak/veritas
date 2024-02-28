@@ -20,7 +20,7 @@ pub trait MovePolicyIndex {
 /// Allows `veritas` to be generic over different game implementations.
 #[allow(clippy::module_name_repetitions)]
 pub trait GameImpl:
-    Default + Display + Debug + Copy + Clone + FromStr + Send + Sync + 'static
+    Default + Display + Debug + Clone + FromStr + Send + Sync + 'static
 {
     /// The dimensionality of the policy.
     const POLICY_DIM: usize;
@@ -84,5 +84,65 @@ impl GameImpl for gomokugen::board::Board<9> {
     }
     fn tensor_dims(batch_size: usize) -> kn_graph::ndarray::IxDyn {
         kn_graph::ndarray::IxDyn(&[batch_size, 2 * 9 * 9])
+    }
+}
+
+impl MovePolicyIndex for cozy_chess::Move {
+    fn policy_index(&self) -> usize {
+        self.from as usize * 64 + self.to as usize
+    }
+}
+
+impl GameImpl for cozy_chess::Board {
+    const POLICY_DIM: usize = 64 * 64;
+
+    type Move = cozy_chess::Move;
+
+    fn to_move(&self) -> Player {
+        if self.side_to_move() == cozy_chess::Color::White {
+            Player::First
+        } else {
+            Player::Second
+        }
+    }
+
+    fn outcome(&self) -> Option<Player> {
+        match self.status() {
+            // If the game is won, the loser is the current side to move.
+            cozy_chess::GameStatus::Won => if self.side_to_move() == cozy_chess::Color::White {
+                Some(Player::Second)
+            } else {
+                Some(Player::First)
+            },
+            cozy_chess::GameStatus::Drawn => Some(Player::None),
+            cozy_chess::GameStatus::Ongoing => None,
+        }
+    }
+
+    fn make_move(&mut self, mv: Self::Move) {
+        self.play(mv);
+    }
+
+    fn generate_moves(&self, mut f: impl FnMut(Self::Move) -> bool) {
+        self.generate_moves(|piece_moves| {
+            for mv in piece_moves {
+                if f(mv) {
+                    return true;
+                }
+            }
+            false
+        });
+    }
+
+    fn fen(&self) -> String {
+        self.to_string()
+    }
+
+    fn fill_feature_map(&self, _index_callback: impl FnMut(usize)) {
+        // nop
+    }
+
+    fn tensor_dims(batch_size: usize) -> kn_graph::ndarray::IxDyn {
+        kn_graph::ndarray::IxDyn(&[batch_size, 2 * 64 * 64])
     }
 }

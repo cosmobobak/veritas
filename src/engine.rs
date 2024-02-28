@@ -48,7 +48,7 @@ enum SelectionResult<G: GameImpl> {
 
 impl<'a, G: GameImpl> Engine<'a, G> {
     /// Creates a new engine.
-    pub const fn new(
+    pub fn new(
         params: Params<'a>,
         limits: Limits,
         root: &G,
@@ -58,13 +58,13 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             params,
             limits,
             tree: Vec::new(),
-            root: *root,
+            root: root.clone(),
             eval_pipe,
         }
     }
 
-    pub const fn root(&self) -> G {
-        self.root
+    pub const fn root(&self) -> &G {
+        &self.root
     }
 
     /// Sets the limits on the search.
@@ -80,7 +80,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
     /// Sets the position to search from.
     /// This clears the search tree, but could in future be altered to retain some subtree.
     pub fn set_position(&mut self, root: &G) {
-        self.root = *root;
+        self.root = root.clone();
         self.tree.clear();
     }
 
@@ -127,14 +127,14 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             // send the root to the executor
             executor
                 .sender
-                .send(*root)
+                .send(root.clone())
                 .expect("failed to send board to executor");
             // wait for the result
             let (policy, _value) = executor
                 .receiver
                 .recv()
                 .expect("failed to receive value from executor");
-            tree[0].expand(*root, &policy);
+            tree[0].expand(root, &policy);
         }
 
         // let mut log = std::io::BufWriter::new(std::fs::File::create("log.txt").unwrap());
@@ -211,7 +211,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 // send the board to the executor
                 executor
                     .sender
-                    .send(board_state)
+                    .send(board_state.clone())
                     .expect("failed to send board to executor");
                 // wait for the result
                 let (policy, value) = executor
@@ -220,7 +220,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                     .expect("failed to receive value from executor");
 
                 // expand this node
-                tree[new_node.index()].expand(board_state, &policy);
+                tree[new_node.index()].expand(&board_state, &policy);
 
                 // backpropagate
                 Self::backpropagate(tree, new_node, 1.0 - f64::from(value));
@@ -258,7 +258,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
     ) -> SelectionResult<G> {
         trace!("Engine::select(root, tree, params, node_idx = {node_idx})");
 
-        let mut pos = *root;
+        let mut pos = root.clone();
         loop {
             // if the node has had a single visit, expand it
             // here, "expand" means adding all the legal moves to the node
@@ -303,7 +303,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
     /// Prints out the current line of best play.
     pub fn print_pv(root: &G, tree: &[Node<G>]) {
         let mut node_idx = Handle::from_index(0, tree);
-        let mut pos = *root;
+        let mut pos = root.clone();
         while !node_idx.is_null() {
             if tree[node_idx.index()].edges().is_none() {
                 break;

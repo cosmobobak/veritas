@@ -1,11 +1,10 @@
 //! The Universal Game Interface (UGI) implementation.
 
 use std::{
-    ops::ControlFlow,
-    sync::{
+    any::TypeId, ops::ControlFlow, sync::{
         atomic::{AtomicBool, Ordering},
         mpsc, Mutex,
-    },
+    }
 };
 
 use kn_graph::optimizer::OptimizerSettings;
@@ -112,6 +111,15 @@ pub fn main_loop<G: GameImpl>() {
                 println!("id author Cosmo");
                 println!("ugiok");
             }
+            "uci" => {
+                if TypeId::of::<G>() != TypeId::of::<cozy_chess::Board>() {
+                    println!("info string WARNING: only Chess is supported for UCI");
+                    continue;
+                }
+                println!("id name {NAME} {VERSION}{version_extension}");
+                println!("id author Cosmo");
+                println!("uciok");
+            }
             "show" => {
                 println!("info string position fen {}", engine.root().fen());
                 let board_string = engine.root().to_string();
@@ -214,7 +222,7 @@ fn make_move_on_engine<G: GameImpl>(play: &str, engine: &mut Engine<'_, G>) -> C
         println!("info string invalid move \"{play}\"");
         return ControlFlow::Break(());
     };
-    let mut root = engine.root();
+    let mut root = engine.root().clone();
     let mut move_legal = false;
     root.generate_moves(|legal_mv| {
         if legal_mv == mv {

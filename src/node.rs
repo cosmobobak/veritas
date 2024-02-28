@@ -39,7 +39,7 @@ enum GameResult {
 impl<G: GameImpl> Edge<G> {
     // Returns move from the point of view of the player making it (if as_opponent
     // is false) or as opponent (if as_opponent is true).
-    pub const fn get_move(self, as_opponent: bool) -> G::Move {
+    pub const fn get_move(&self, as_opponent: bool) -> G::Move {
         if as_opponent {
             todo!()
         } else {
@@ -47,7 +47,7 @@ impl<G: GameImpl> Edge<G> {
         }
     }
 
-    pub const fn probability(self) -> f64 {
+    pub const fn probability(&self) -> f64 {
         self.probability as f64
     }
 }
@@ -209,7 +209,7 @@ impl<G: GameImpl> Node<G> {
     }
 
     /// Expands this node, adding the legal moves and their policies.
-    pub fn expand(&mut self, pos: G, policy: &[f32]) {
+    pub fn expand(&mut self, pos: &G, policy: &[f32]) {
         // TODO: FIX GENERIC SIZE SOMEHOW
         let mut moves = SmallVec::<[Edge<G>; 81]>::new();
         let mut max_logit = -1000.0;

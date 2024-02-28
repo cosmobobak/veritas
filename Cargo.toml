@@ -27,6 +27,7 @@ kn-cuda-eval = { path = "../Kyanite/kn-cuda-eval" }
 kn-cuda-sys = { path = "../Kyanite/kn-cuda-sys" }
 crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
 rand = "0.8.5"
+cozy-chess = { version = "0.3.3", features = ["std"] }
 
 [profile.release]
 debug = true
