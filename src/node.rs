@@ -209,12 +209,12 @@ impl<G: GameImpl> Node<G> {
     }
 
     /// Expands this node, adding the legal moves and their policies.
-    pub fn expand(&mut self, pos: G, policy: &[f32]) {
+    pub fn expand(&mut self, pos: G, policy: &[f32], uniform: bool) {
         // TODO: FIX GENERIC SIZE SOMEHOW
         let mut moves = SmallVec::<[Edge<G>; 81]>::new();
         let mut max_logit = -1000.0;
         pos.generate_moves(|m| {
-            let logit = policy[m.policy_index()];
+            let logit = if uniform { 1.0 } else { policy[m.policy_index()] };
             if logit > max_logit {
                 max_logit = logit;
             }

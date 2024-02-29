@@ -126,7 +126,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             tree.push(Node::new(Handle::null(), 0));
             #[cfg(feature = "pure-mcts")]
             {
-                tree[0].expand(*root, &vec![1.0; G::POLICY_DIM]);
+                tree[0].expand(*root, &[], true);
             }
             #[cfg(not(feature = "pure-mcts"))]
             {
@@ -140,7 +140,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                     .receiver
                     .recv()
                     .expect("failed to receive value from executor");
-                tree[0].expand(*root, &policy);
+                tree[0].expand(*root, &policy, false);
             }
         }
 
@@ -215,12 +215,13 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 board_state.make_move(mv);
 
                 // simulate
-                let (policy, value);
+                let (policy, value, uniform);
                 #[cfg(feature = "pure-mcts")]
                 {
                     // if we're doing pure MCTS, we do a random rollout.
                     value = board_state.rollout();
-                    policy = vec![1.0; G::POLICY_DIM];
+                    policy = [];
+                    uniform = true;
                 }
                 #[cfg(not(feature = "pure-mcts"))]
                 {
@@ -234,10 +235,11 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                         .receiver
                         .recv()
                         .expect("failed to receive value from executor");
+                    uniform = false;
                 }
 
                 // expand this node
-                tree[new_node.index()].expand(board_state, &policy);
+                tree[new_node.index()].expand(board_state, &policy, uniform);
 
                 // backpropagate
                 Self::backpropagate(tree, new_node, 1.0 - f64::from(value));
