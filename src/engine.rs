@@ -1,6 +1,5 @@
 // use gomokugen::board::{Board, Move, Player};
 use log::{debug, trace};
-use smallvec::SmallVec;
 // use std::io::Write;
 use std::{sync::atomic::Ordering, time::Instant};
 
@@ -375,8 +374,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         // This is slightly problematic because we have to do linked list stuff where
         // only some of the edges have corresponding nodes.
         // The simplest solution is just to have an array that we fill in.
-        let mut values = SmallVec::<[Option<_>; 2600]>::new();//vec![None; G::POLICY_DIM];
-        values.resize(G::POLICY_DIM, None);
+        let mut values = vec![None; G::POLICY_DIM];
         while !child.is_null() {
             let node = &tree[child.index()];
             let edge = &edges[node.edge_index()];
