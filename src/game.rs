@@ -141,7 +141,12 @@ impl GameImpl for ataxxgen::Board {
     }
 
     fn outcome(&self) -> Option<Player> {
-        todo!()
+        match self.outcome() {
+            None => None,
+            Some(None) => Some(Player::None),
+            Some(Some(ataxxgen::Player::White)) => Some(Player::First),
+            Some(Some(ataxxgen::Player::Black)) => Some(Player::Second),
+        }
     }
 
     fn make_move(&mut self, mv: Self::Move) {
