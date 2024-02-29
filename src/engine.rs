@@ -219,7 +219,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 #[cfg(feature = "pure-mcts")]
                 {
                     // if we're doing pure MCTS, we do a random rollout.
-                    value = board_state.rollout();
+                    value = 1.0 - board_state.rollout();
                     policy = vec![1.0; G::POLICY_DIM];
                 }
                 #[cfg(not(feature = "pure-mcts"))]
