@@ -152,7 +152,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             Self::do_sesb(executor, root, tree, params);
 
             // update elapsed time and print stats
-            if nodes_searched % 1024 == 0 {
+            if nodes_searched % 8 == 0 {
                 if params.do_stdout {
                     print!(
                         "info nodes {} time {} nps {:.0} score q {:.1} pv",
