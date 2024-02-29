@@ -107,7 +107,7 @@ dependencies = [
 [[package]]
 name = "ataxxgen"
 version = "0.1.0"
-source = "git+https://github.com/cosmobobak/ataxxgen#b8293354614d3913c74339909b88b2be3e6ccb21"
+source = "git+https://github.com/cosmobobak/ataxxgen#96ed30c9ae1da72f4506ce88b235fba83a4233f3"
 
 [[package]]
 name = "autocfg"

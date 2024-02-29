@@ -124,12 +124,12 @@ impl GameImpl for gomokugen::board::Board<9> {
 
 impl MovePolicyIndex for ataxxgen::Move {
     fn policy_index(&self) -> usize {
-        0
+        self.policy_index()
     }
 }
 
 impl GameImpl for ataxxgen::Board {
-    const POLICY_DIM: usize = 1;
+    const POLICY_DIM: usize = 7 * 7 * 7 * 7;
 
     type Move = ataxxgen::Move;
 

@@ -204,7 +204,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             SelectionResult::NonTerminal {
                 node_index: best_node,
                 edge_index: edge_to_expand,
-                board_state,
+                mut board_state,
             } => {
                 // expand
                 let new_node = Self::expand(tree, params, best_node, edge_to_expand);
@@ -212,15 +212,14 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 // make the move
                 let edge = &tree[best_node].edges().unwrap()[edge_to_expand];
                 let mv = edge.get_move(false);
-                let mut new_board_state = board_state;
-                new_board_state.make_move(mv);
+                board_state.make_move(mv);
 
                 // simulate
                 let (policy, value);
                 #[cfg(feature = "pure-mcts")]
                 {
                     // if we're doing pure MCTS, we do a random rollout.
-                    value = 1.0 - board_state.rollout();
+                    value = board_state.rollout();
                     policy = vec![1.0; G::POLICY_DIM];
                 }
                 #[cfg(not(feature = "pure-mcts"))]
@@ -228,7 +227,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                     // send the board to the executor
                     executor
                         .sender
-                        .send(new_board_state)
+                        .send(board_state)
                         .expect("failed to send board to executor");
                     // wait for the result
                     (policy, value) = executor
@@ -238,7 +237,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 }
 
                 // expand this node
-                tree[new_node.index()].expand(new_board_state, &policy);
+                tree[new_node.index()].expand(board_state, &policy);
 
                 // backpropagate
                 Self::backpropagate(tree, new_node, 1.0 - f64::from(value));
