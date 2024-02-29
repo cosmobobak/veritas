@@ -124,17 +124,24 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         if tree.is_empty() {
             // create the root node
             tree.push(Node::new(Handle::null(), 0));
-            // send the root to the executor
-            executor
-                .sender
-                .send(*root)
-                .expect("failed to send board to executor");
-            // wait for the result
-            let (policy, _value) = executor
-                .receiver
-                .recv()
-                .expect("failed to receive value from executor");
-            tree[0].expand(*root, &policy);
+            #[cfg(feature = "pure-mcts")]
+            {
+                tree[0].expand(*root, &vec![1.0; G::POLICY_DIM]);
+            }
+            #[cfg(not(feature = "pure-mcts"))]
+            {
+                // send the root to the executor
+                executor
+                    .sender
+                    .send(*root)
+                    .expect("failed to send board to executor");
+                // wait for the result
+                let (policy, _value) = executor
+                    .receiver
+                    .recv()
+                    .expect("failed to receive value from executor");
+                tree[0].expand(*root, &policy);
+            }
         }
 
         // let mut log = std::io::BufWriter::new(std::fs::File::create("log.txt").unwrap());
@@ -208,16 +215,26 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 board_state.make_move(mv);
 
                 // simulate
-                // send the board to the executor
-                executor
-                    .sender
-                    .send(board_state)
-                    .expect("failed to send board to executor");
-                // wait for the result
-                let (policy, value) = executor
-                    .receiver
-                    .recv()
-                    .expect("failed to receive value from executor");
+                let (policy, value);
+                #[cfg(feature = "pure-mcts")]
+                {
+                    // if we're doing pure MCTS, we do a random rollout.
+                    value = board_state.rollout();
+                    policy = vec![1.0; G::POLICY_DIM];
+                }
+                #[cfg(not(feature = "pure-mcts"))]
+                {
+                    // send the board to the executor
+                    executor
+                        .sender
+                        .send(board_state)
+                        .expect("failed to send board to executor");
+                    // wait for the result
+                    (policy, value) = executor
+                        .receiver
+                        .recv()
+                        .expect("failed to receive value from executor");
+                }
 
                 // expand this node
                 tree[new_node.index()].expand(board_state, &policy);
