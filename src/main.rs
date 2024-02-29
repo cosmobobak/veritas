@@ -29,7 +29,7 @@ fn main() {
 
     if std::env::args_os().len() == 1 {
         // fast path to UCI:
-        return ugi::main_loop::<Board<9>>();
+        return ugi::main_loop::<ataxxgen::Board>();
     }
 
     let args: Vec<_> = std::env::args_os().collect();
