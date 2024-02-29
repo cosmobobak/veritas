@@ -120,6 +120,9 @@ impl GameImpl for gomokugen::board::Board<9> {
     fn tensor_dims(batch_size: usize) -> kn_graph::ndarray::IxDyn {
         kn_graph::ndarray::IxDyn(&[batch_size, 2 * 9 * 9])
     }
+    fn make_random_move(&mut self, rng: impl FnMut(usize, usize) -> usize) {
+        self.make_random_move(rng);
+    }
 }
 
 impl MovePolicyIndex for ataxxgen::Move {
