@@ -376,6 +376,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         // only some of the edges have corresponding nodes.
         // The simplest solution is just to have an array that we fill in.
         let mut values = SmallVec::<[Option<_>; 2600]>::new();//vec![None; G::POLICY_DIM];
+        values.resize(G::POLICY_DIM, None);
         while !child.is_null() {
             let node = &tree[child.index()];
             let edge = &edges[node.edge_index()];
