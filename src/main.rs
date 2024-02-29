@@ -3,8 +3,6 @@
 
 //! Veritas, a UGI-conformant MCTS-PUCT engine.
 
-use gomokugen::board::Board;
-
 mod arena;
 mod batching;
 mod datagen;
@@ -38,7 +36,20 @@ fn main() {
         "datagen" => {
             let num_threads = args[2].to_str().unwrap().parse().unwrap();
             let time_allocated_millis = args[3].to_str().unwrap().parse().unwrap();
-            datagen::run_data_generation::<Board<9>>(num_threads, time_allocated_millis);
+            let game = args.get(2).map_or("ataxx", |s| s.to_str().unwrap());
+            match game {
+                "ataxx" => datagen::run_data_generation::<ataxxgen::Board>(num_threads, time_allocated_millis),
+                "gomoku" => datagen::run_data_generation::<gomokugen::board::Board<9>>(num_threads, time_allocated_millis),
+                _ => panic!("unknown game"),
+            }
+        }
+        "uci" => {
+            let game = args.get(2).map_or("ataxx", |s| s.to_str().unwrap());
+            match game {
+                "ataxx" => ugi::main_loop::<ataxxgen::Board>(),
+                "gomoku" => ugi::main_loop::<gomokugen::board::Board<9>>(),
+                _ => panic!("unknown game"),
+            }
         }
         _ => panic!("unknown subcommand"),
     }

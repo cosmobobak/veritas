@@ -159,7 +159,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                         nodes_searched,
                         elapsed,
                         nodes_searched as f64 / (elapsed as f64 / 1000.0),
-                        tree[0].winrate() * 100.0
+                        (1.0 - tree[0].winrate()) * 100.0
                     );
                     Self::print_pv(root, tree);
                 }
