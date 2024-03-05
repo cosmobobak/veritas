@@ -164,7 +164,7 @@ pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_milli
     let mut threads = Vec::new();
 
     // Load an onnx file into a Graph.
-    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./model.onnx", false).unwrap();
+    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./ataxx-bootstrap-t4.onnx", false).unwrap();
     // Optimise the graph.
     let graph = kn_graph::optimizer::optimize_graph(&raw_graph, OptimizerSettings::default());
     // Deallocate the raw graph.
