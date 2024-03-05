@@ -3,6 +3,8 @@ use std::{
     str::FromStr,
 };
 
+use smallvec::SmallVec;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Player {
     None,
@@ -42,7 +44,7 @@ pub trait GameImpl:
     fn tensor_dims(batch_size: usize) -> kn_graph::ndarray::IxDyn;
     /// Make a random move.
     fn make_random_move(&mut self, mut rng: impl FnMut(usize, usize) -> usize) {
-        let mut moves = Vec::new();
+        let mut moves = SmallVec::<[Self::Move; 265]>::new();
         self.generate_moves(|mv| {
             moves.push(mv);
             false
@@ -170,5 +172,9 @@ impl GameImpl for ataxxgen::Board {
 
     fn tensor_dims(batch_size: usize) -> kn_graph::ndarray::IxDyn {
         kn_graph::ndarray::IxDyn(&[batch_size, 2 * 7 * 7])
+    }
+
+    fn make_random_move(&mut self, rng: impl FnMut(usize, usize) -> usize) {
+        self.make_random_move(rng);
     }
 }

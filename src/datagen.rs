@@ -175,18 +175,22 @@ pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_milli
     let (send, recv) = std::sync::mpsc::channel();
 
     let save_folder_p = save_folder.clone();
-    threads.push(std::thread::spawn(move || {
+    threads.push(std::thread::Builder::new().name("game_record_writer".to_string()).spawn(move || {
         game_record_writer_thread(&save_folder_p, recv)
-    }));
+    })?);
 
     for (thread_id, executor) in executor_handles.into_iter().enumerate() {
         let send = send.clone();
-        threads.push(std::thread::spawn(move || {
+        threads.push(std::thread::Builder::new().name(format!("self_play_worker_{thread_id}")).spawn(move || {
             self_play_worker_thread(time_allocated_millis, thread_id, executor, send)
-        }));
+        })?);
     }
 
+    std::mem::drop(send);
+
+    log::trace!("Waiting for threads to finish...");
     for thread in threads {
+        log::trace!("Joining {}", thread.thread().name().unwrap_or("unnamed"));
         // we don't care if the thread panicked
         let _ = thread.join();
     }

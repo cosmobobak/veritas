@@ -3,6 +3,8 @@
 
 //! Veritas, a UGI-conformant MCTS-PUCT engine.
 
+use anyhow::Context;
+
 mod arena;
 mod batching;
 mod datagen;
@@ -34,12 +36,33 @@ fn main() -> anyhow::Result<()> {
 
     match args[1].to_str().unwrap() {
         "datagen" => {
-            let num_threads = args[2].to_str().unwrap().parse().unwrap();
-            let time_allocated_millis = args[3].to_str().unwrap().parse().unwrap();
-            let game = args.get(2).map_or("ataxx", |s| s.to_str().unwrap());
+            let game = args.get(2)
+                .with_context(|| "did not find <GAME> argument!")?
+                .to_str()
+                .with_context(|| "invalid unicode!")?;
+            let num_threads = args
+                .get(3)
+                .with_context(|| "did not find <NUM_THREADS> argument!")?
+                .to_str()
+                .with_context(|| "invalid unicode!")?
+                .parse()
+                .with_context(|| "num_threads")?;
+            let time_allocated_millis = args
+                .get(4)
+                .with_context(|| "did not find <DATAGEN_MILLIS> argument!")?
+                .to_str()
+                .with_context(|| "invalid unicode!")?
+                .parse()
+                .with_context(|| "time_allocated_millis")?;
             match game {
-                "ataxx" => datagen::run_data_generation::<ataxxgen::Board>(num_threads, time_allocated_millis),
-                "gomoku" => datagen::run_data_generation::<gomokugen::board::Board<9>>(num_threads, time_allocated_millis),
+                "ataxx" => datagen::run_data_generation::<ataxxgen::Board>(
+                    num_threads,
+                    time_allocated_millis,
+                ),
+                "gomoku" => datagen::run_data_generation::<gomokugen::board::Board<9>>(
+                    num_threads,
+                    time_allocated_millis,
+                ),
                 _ => panic!("unknown game"),
             }
         }
