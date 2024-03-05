@@ -64,7 +64,7 @@ fn stdin_reader_worker(sender: mpsc::Sender<String>) {
 
 /// The main loop of the Universal Game Interface (UGI).
 #[allow(clippy::too_many_lines)]
-pub fn main_loop<G: GameImpl>() {
+pub fn main_loop<G: GameImpl>() -> anyhow::Result<()> {
     let stdin = Mutex::new(stdin_reader());
 
     let version_extension = if cfg!(feature = "final-release") {
@@ -81,7 +81,7 @@ pub fn main_loop<G: GameImpl>() {
     // Deallocate the raw graph.
     std::mem::drop(raw_graph);
 
-    let executor_handles = batching::executor(&graph, 1);
+    let executor_handles = batching::executor(&graph, 1)?;
 
     let default_params = Params::default().with_stdin_rx(&stdin).with_stdout(true);
     let default_limits = Limits::default();
@@ -207,6 +207,8 @@ pub fn main_loop<G: GameImpl>() {
     }
 
     STDIN_READER_THREAD_KEEP_RUNNING.store(false, Ordering::SeqCst);
+
+    Ok(())
 }
 
 fn make_move_on_engine<G: GameImpl>(play: &str, engine: &mut Engine<'_, G>) -> ControlFlow<()> {

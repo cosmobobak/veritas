@@ -20,7 +20,7 @@ pub struct EvalPipe<G: GameImpl> {
 }
 
 pub struct Executor<G: GameImpl> {
-    internal: CudaExecutor,
+    internal: Option<CudaExecutor>,
     eval_pipes: Vec<EvalPipe<G>>,
     in_waiting: Vec<(usize, G)>,
     batch_size: usize,
@@ -28,12 +28,12 @@ pub struct Executor<G: GameImpl> {
 
 impl<G: GameImpl> Executor<G> {
     pub fn new(
-        cuda_device: CudaDevice,
+        cuda_device: Option<CudaDevice>,
         num_pipes: usize,
         graph: &Graph,
     ) -> (Self, Vec<ExecutorHandle<G>>) {
         let batch_size = EXECUTOR_BATCH_SIZE.min(num_pipes);
-        let internal = CudaExecutor::new(cuda_device, graph, batch_size);
+        let internal = cuda_device.map(|cd| CudaExecutor::new(cd, graph, batch_size));
         let mut eval_pipes = Vec::new();
         let mut handles = Vec::new();
         for _ in 0..num_pipes {
@@ -107,7 +107,7 @@ impl<G: GameImpl> Executor<G> {
             indices.push(pipe_index);
         }
         let inputs = [DTensor::F32(input)];
-        let tensors = self.internal.evaluate(&inputs);
+        let tensors = self.internal.as_mut().expect("no CUDA executor exists.").evaluate(&inputs);
 
         let policy = tensors[0].unwrap_f32().unwrap();
         let value = tensors[1].unwrap_f32().unwrap();
@@ -123,9 +123,15 @@ impl<G: GameImpl> Executor<G> {
 }
 
 /// Starts the executor thread and returns a list of handles to the pipes.
-pub fn executor<G: GameImpl>(graph: &Graph, batch_size: usize) -> Vec<ExecutorHandle<G>> {
-    let cuda_device = CudaDevice::new(0).unwrap();
-    println!("Using device: {}", cuda_device.name());
+pub fn executor<G: GameImpl>(graph: &Graph, batch_size: usize) -> anyhow::Result<Vec<ExecutorHandle<G>>> {
+    #[cfg(feature = "pure-mcts")]
+    let cuda_device = None;
+    #[cfg(not(feature = "pure-mcts"))]
+    let cuda_device = {
+        let cd = CudaDevice::new(0).map_err(|_| anyhow::anyhow!("No cuda device available"))?;
+        println!("Using device: {}", cd.name());
+        Some(cd)
+    };
     let (mut executor, handles) = Executor::new(cuda_device, batch_size, graph);
     std::thread::Builder::new()
         .name("executor".into())
@@ -138,5 +144,5 @@ pub fn executor<G: GameImpl>(graph: &Graph, batch_size: usize) -> Vec<ExecutorHa
             log::debug!("Batch of evaluations completed.");
         })
         .expect("Couldn't start executor thread");
-    handles
+    Ok(handles)
 }

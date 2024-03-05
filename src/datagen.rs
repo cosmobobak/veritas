@@ -23,7 +23,7 @@ struct GameRecord<G: GameImpl> {
 static GAMES_GENERATED: AtomicUsize = AtomicUsize::new(0);
 static POSITIONS_GENERATED: AtomicUsize = AtomicUsize::new(0);
 
-fn game_record_writer_thread<G: GameImpl>(save_folder: &str, recv: std::sync::mpsc::Receiver<GameRecord<G>>) -> std::io::Result<()> {
+fn game_record_writer_thread<G: GameImpl>(save_folder: &str, recv: std::sync::mpsc::Receiver<GameRecord<G>>) -> anyhow::Result<()> {
     let mut positions = BufWriter::new(File::create(format!("{save_folder}/positions.csv"))?);
     let mut policy_tgt = BufWriter::new(File::create(format!("{save_folder}/policy-target.csv"))?);
     let mut value_tgt = BufWriter::new(File::create(format!("{save_folder}/value-target.csv"))?);
@@ -155,7 +155,7 @@ fn self_play_worker_thread<G: GameImpl>(
     Ok(())
 }
 
-pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_millis: u128) {
+pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_millis: u128) -> anyhow::Result<()> {
     let date = chrono::Local::now().format("%Y-%m-%d-%H-%M-%S");
     let save_folder = format!("data/{date}");
     std::fs::create_dir_all(&save_folder).unwrap();
@@ -170,19 +170,19 @@ pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_milli
     // Deallocate the raw graph.
     std::mem::drop(raw_graph);
 
-    let executor_handles = batching::executor::<G>(&graph, num_threads);
+    let executor_handles = batching::executor::<G>(&graph, num_threads)?;
 
     let (send, recv) = std::sync::mpsc::channel();
 
     let save_folder_p = save_folder.clone();
     threads.push(std::thread::spawn(move || {
-        game_record_writer_thread(&save_folder_p, recv).unwrap();
+        game_record_writer_thread(&save_folder_p, recv)
     }));
 
     for (thread_id, executor) in executor_handles.into_iter().enumerate() {
         let send = send.clone();
         threads.push(std::thread::spawn(move || {
-            self_play_worker_thread(time_allocated_millis, thread_id, executor, send).unwrap();
+            self_play_worker_thread(time_allocated_millis, thread_id, executor, send)
         }));
     }
 
@@ -196,4 +196,6 @@ pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_milli
         "Generated {} games.",
         GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed)
     );
+
+    Ok(())
 }
