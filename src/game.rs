@@ -25,7 +25,7 @@ pub trait GameImpl:
     /// The dimensionality of the policy.
     const POLICY_DIM: usize;
     /// The associated move type.
-    type Move: Copy + Eq + Display + Debug + FromStr + MovePolicyIndex;
+    type Move: Copy + Eq + Display + Debug + FromStr + MovePolicyIndex + Send + Sync + 'static;
     /// Which player is to move.
     fn to_move(&self) -> Player;
     /// The outcome of the game.

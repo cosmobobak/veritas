@@ -23,30 +23,77 @@ struct GameRecord<G: GameImpl> {
 static GAMES_GENERATED: AtomicUsize = AtomicUsize::new(0);
 static POSITIONS_GENERATED: AtomicUsize = AtomicUsize::new(0);
 
+fn game_record_writer_thread<G: GameImpl>(save_folder: &str, recv: std::sync::mpsc::Receiver<GameRecord<G>>) -> std::io::Result<()> {
+    let mut positions = BufWriter::new(File::create(format!("{save_folder}/positions.csv"))?);
+    let mut policy_tgt = BufWriter::new(File::create(format!("{save_folder}/policy-target.csv"))?);
+    let mut value_tgt = BufWriter::new(File::create(format!("{save_folder}/value-target.csv"))?);
+
+    for game in recv {
+        let mut board = game.root;
+        for (best_move, root_dist) in game.move_list {
+            let ixdyn = G::tensor_dims(1);
+            let mut feature_map = vec![0; ixdyn.size()];
+            let to_move = board.to_move();
+            board.fill_feature_map(|index| {
+                feature_map[index] = 1;
+            });
+            // write out the position
+            for (i, f) in feature_map.iter().enumerate() {
+                write!(positions, "{}", *f)?;
+                if i < feature_map.len() - 1 {
+                    write!(positions, ",")?;
+                }
+            }
+            writeln!(positions)?;
+            // write out the policy target
+            assert_eq!(root_dist.len(), G::POLICY_DIM);
+            for (i, p) in root_dist.iter().enumerate() {
+                write!(policy_tgt, "{:.3}", *p)?;
+                if i < root_dist.len() - 1 {
+                    write!(policy_tgt, ",")?;
+                }
+            }
+            writeln!(policy_tgt)?;
+            // write out the value target
+            let value_target = match game.outcome {
+                Some(Player::None) => 0.5,
+                Some(player) => {
+                    if player == to_move {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                }
+                None => unreachable!(),
+            };
+            writeln!(value_tgt, "{value_target}")?;
+            board.make_move(best_move);
+            POSITIONS_GENERATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    positions.flush()?;
+    policy_tgt.flush()?;
+    value_tgt.flush()?;
+
+    Ok(())
+}
+
 #[allow(clippy::too_many_lines)]
-fn thread_fn<G: GameImpl>(
+fn self_play_worker_thread<G: GameImpl>(
     time_allocated_millis: u128,
-    save_folder: &str,
     thread_id: usize,
     executor: ExecutorHandle<G>,
-) {
+    send: std::sync::mpsc::Sender<GameRecord<G>>,
+) -> anyhow::Result<()> {
     #![allow(clippy::cast_precision_loss)]
     let start_time = std::time::Instant::now();
     let default_params = Params::default();
-    let default_limits = "nodes 800".parse().unwrap();
+    let default_limits = "nodes 800".parse()?;
     let starting_position = G::default();
     let mut engine = Engine::new(default_params, default_limits, &starting_position, executor);
 
     let mut rng = rand::thread_rng();
-
-    let mut positions =
-        BufWriter::new(File::create(format!("{save_folder}/positions-{thread_id}.csv")).unwrap());
-    let mut policy_tgt = BufWriter::new(
-        File::create(format!("{save_folder}/policy-target-{thread_id}.csv")).unwrap(),
-    );
-    let mut value_tgt = BufWriter::new(
-        File::create(format!("{save_folder}/value-target-{thread_id}.csv")).unwrap(),
-    );
 
     while start_time.elapsed().as_millis() < time_allocated_millis {
         GAMES_GENERATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -58,7 +105,7 @@ fn thread_fn<G: GameImpl>(
                 POSITIONS_GENERATED.load(std::sync::atomic::Ordering::Relaxed) as f64
                     / start_time.elapsed().as_secs_f64()
             );
-            std::io::stdout().flush().unwrap();
+            std::io::stdout().flush()?;
         }
 
         let mut board = G::default();
@@ -90,56 +137,22 @@ fn thread_fn<G: GameImpl>(
             game.move_list.push((best_move, root_dist));
         }
 
-        game.outcome = board.outcome();
-
-        let mut board = game.root;
-        for (best_move, root_dist) in game.move_list {
-            let ixdyn = G::tensor_dims(1);
-            let mut feature_map = vec![0; ixdyn.size()];
-            let to_move = board.to_move();
-            board.fill_feature_map(|index| {
-                feature_map[index] = 1;
-            });
-            // write out the position
-            for (i, f) in feature_map.iter().enumerate() {
-                write!(positions, "{}", *f).unwrap();
-                if i < feature_map.len() - 1 {
-                    write!(positions, ",").unwrap();
-                }
-            }
-            writeln!(positions).unwrap();
-            // write out the policy target
-            for (i, p) in root_dist.iter().enumerate() {
-                write!(policy_tgt, "{:.3}", *p).unwrap();
-                if i < root_dist.len() - 1 {
-                    write!(policy_tgt, ",").unwrap();
-                }
-            }
-            writeln!(policy_tgt).unwrap();
-            // write out the value target
-            let value_target = match game.outcome {
-                Some(Player::None) => 0.5,
-                Some(player) => {
-                    if player == to_move {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                }
-                None => unreachable!(),
-            };
-            writeln!(value_tgt, "{value_target}").unwrap();
-            board.make_move(best_move);
-            POSITIONS_GENERATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if let Some(outcome) = board.outcome() {
+            game.outcome = Some(outcome);
+        } else {
+            anyhow::bail!("Game ended without outcome in position {:?}. move sequence was {:?}", board, game.move_list);
         }
 
-        positions.flush().unwrap();
-        policy_tgt.flush().unwrap();
-        value_tgt.flush().unwrap();
+        send.send(game)?;
     }
+
     if thread_id == 0 {
         println!();
     }
+
+    std::mem::drop(send);
+
+    Ok(())
 }
 
 pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_millis: u128) {
@@ -159,10 +172,17 @@ pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_milli
 
     let executor_handles = batching::executor::<G>(&graph, num_threads);
 
+    let (send, recv) = std::sync::mpsc::channel();
+
+    let save_folder_p = save_folder.clone();
+    threads.push(std::thread::spawn(move || {
+        game_record_writer_thread(&save_folder_p, recv).unwrap();
+    }));
+
     for (thread_id, executor) in executor_handles.into_iter().enumerate() {
-        let save_folder = save_folder.clone();
+        let send = send.clone();
         threads.push(std::thread::spawn(move || {
-            thread_fn(time_allocated_millis, &save_folder, thread_id, executor);
+            self_play_worker_thread(time_allocated_millis, thread_id, executor, send).unwrap();
         }));
     }
 

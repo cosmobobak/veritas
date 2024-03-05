@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use anyhow::Context;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Clock {
     Fixed {
@@ -113,7 +115,7 @@ impl std::ops::Add for Limits {
 }
 
 impl FromStr for Limits {
-    type Err = ();
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // example valid input:
@@ -129,36 +131,36 @@ impl FromStr for Limits {
         while let Some(word) = words.next() {
             match word {
                 "nodes" => {
-                    let nodes = words.next().ok_or(())?.parse().map_err(|_| ())?;
+                    let nodes = words.next().with_context(|| "nothing after \"nodes\" token!")?.parse()?;
                     components.push(Self::nodes(nodes));
                 }
                 "movetime" => {
-                    let millis = words.next().ok_or(())?.parse().map_err(|_| ())?;
+                    let millis = words.next().with_context(|| "nothing after \"movetime\" token!")?.parse()?;
                     components.push(Self::movetime(millis));
                 }
                 "p1time" => {
-                    let p1time = words.next().ok_or(())?.parse().map_err(|_| ())?;
-                    let t = words.next().ok_or(())?; // "p2time"
+                    let p1time = words.next().with_context(|| "nothing after \"p1time\" token!")?.parse()?;
+                    let t = words.next().with_context(|| "did not find \"p2time\" token!")?;
                     if t != "p2time" {
-                        return Err(());
+                        anyhow::bail!("expected \"p2time\" token, found {:?}", t);
                     }
-                    let p2time = words.next().ok_or(())?.parse().map_err(|_| ())?;
-                    let t = words.next().ok_or(())?; // "p1inc"
+                    let p2time = words.next().with_context(|| "nothing after \"p2time\" token!")?.parse()?;
+                    let t = words.next().with_context(|| "did not find \"p1inc\" token!")?;
                     if t != "p1inc" {
-                        return Err(());
+                        anyhow::bail!("expected \"p2time\" token, found {:?}", t);
                     }
-                    let p1inc = words.next().ok_or(())?.parse().map_err(|_| ())?;
-                    let t = words.next().ok_or(())?; // "p2inc"
+                    let p1inc = words.next().with_context(|| "nothing after \"p1inc\" token!")?.parse()?;
+                    let t = words.next().with_context(|| "did not find \"p2inc\" token!")?;
                     if t != "p2inc" {
-                        return Err(());
+                        anyhow::bail!("expected \"p2time\" token, found {:?}", t);
                     }
-                    let p2inc = words.next().ok_or(())?.parse().map_err(|_| ())?;
+                    let p2inc = words.next().with_context(|| "nothing after \"p2inc\" token!")?.parse()?;
                     components.push(Self::time(p1time, p1inc, p2time, p2inc));
                 }
                 "infinite" => {
                     components.push(Self::infinite());
                 }
-                _ => return Err(()),
+                _ => anyhow::bail!("unexpected token: {:?}", word),
             }
         }
 
