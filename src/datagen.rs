@@ -100,11 +100,11 @@ fn self_play_worker_thread<G: GameImpl>(
     let mut rng = rand::thread_rng();
 
     while start_time.elapsed().as_millis() < time_allocated_millis {
-        GAMES_GENERATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let prev = GAMES_GENERATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-        if thread_id == 0 {
+        if prev % 32 == 0 {
             print!(
-                "\rGenerated {} games at {} pos/sec",
+                "\rGenerated {} games at {:.2} pos/sec",
                 GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed),
                 POSITIONS_GENERATED.load(std::sync::atomic::Ordering::Relaxed) as f64
                     / start_time.elapsed().as_secs_f64()
