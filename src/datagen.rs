@@ -135,7 +135,7 @@ fn self_play_worker_thread<G: GameImpl>(
             let SearchResults {
                 best_move,
                 root_dist,
-            } = engine.go();
+            } = engine.go()?;
             assert_eq!(root_dist.len(), G::POLICY_DIM);
             board.make_move(best_move);
             game.move_list.push((best_move, root_dist));

@@ -85,7 +85,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
     }
 
     /// Runs the engine.
-    pub fn go(&mut self) -> SearchResults<G> {
+    pub fn go(&mut self) -> anyhow::Result<SearchResults<G>> {
         trace!("Engine::go()");
 
         Self::search(
@@ -94,16 +94,16 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             &mut self.tree,
             &self.params,
             &self.limits,
-        );
+        )?;
 
         let best_move = self.tree[0].best_move(&self.tree);
 
         let root_dist = self.tree[0].dist(&self.tree);
 
-        SearchResults {
+        Ok(SearchResults {
             best_move,
             root_dist,
-        }
+        })
     }
 
     /// Repeat the search loop until the time limit is reached.
@@ -113,7 +113,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         tree: &mut Vec<Node<G>>,
         params: &Params,
         limits: &Limits,
-    ) {
+    ) -> anyhow::Result<()> {
         #![allow(clippy::cast_precision_loss)]
         trace!("Engine::search(root, tree, params, limits)");
 
@@ -133,13 +133,11 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 // send the root to the executor
                 executor
                     .sender
-                    .send(*root)
-                    .expect("failed to send board to executor");
+                    .send(*root)?;
                 // wait for the result
                 let (policy, _value) = executor
                     .receiver
-                    .recv()
-                    .expect("failed to receive value from executor");
+                    .recv()?;
                 tree[0].expand(*root, &policy, false);
             }
         }
@@ -191,6 +189,8 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             "Engine::search: finished search loop with {} entries in tree.",
             tree.len()
         );
+
+        Ok(())
     }
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.

@@ -158,7 +158,7 @@ pub fn main_loop<G: GameImpl>() -> anyhow::Result<()> {
                 let SearchResults {
                     best_move,
                     root_dist,
-                } = engine.go();
+                } = engine.go()?;
                 info!("best move from search: {}", best_move);
                 info!("root rollout distribution: {:?}", root_dist);
                 println!("bestmove {best_move}");
