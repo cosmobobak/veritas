@@ -70,6 +70,10 @@ fn game_record_writer_thread<G: GameImpl>(save_folder: &str, recv: std::sync::mp
             board.make_move(best_move);
             POSITIONS_GENERATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
+
+        positions.flush()?;
+        policy_tgt.flush()?;
+        value_tgt.flush()?;
     }
 
     positions.flush()?;
