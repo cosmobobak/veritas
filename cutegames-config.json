@@ -1,7 +1,7 @@
 {
     "games": 200,
-    "concurrency": 8,
-    "ratinginterval": 5,
+    "concurrency": 1,
+    "ratinginterval": 1,
     "verbose": false,
     "debug": false,
     "recover": false,
@@ -15,10 +15,10 @@
         "askturn": true
     },
     "timecontrol": {
-        "type": "nodes",
+        "type": "clock",
         "time": 8000,
-        "increment": 80,
-        "nodes": 800
+        "increment": 800,
+        "nodes": 500
     },
     "sprt": {
         "enabled": false,
@@ -37,12 +37,12 @@
     },
     "engines": [
         {
-            "name": "net 4",
-            "path": "./nn-fixed"
+            "name": "MCTS",
+            "path": "./pure-mcts uci gomoku"
         },
         {
-            "name": "net 1",
-            "path": "./nn-new"
+            "name": "PUCT",
+            "path": "./puct uci gomoku"
         }
     ]
 }

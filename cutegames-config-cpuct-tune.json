@@ -7,7 +7,7 @@
     "recover": false,
     "tournament": "roundrobin",
     "openings": {
-        "path": "./startpos.txt",
+        "path": "./d2-9x9-openings.txt",
         "repeat": true,
         "shuffle": false
     },
