@@ -147,7 +147,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         let mut stopped_by_stdin = false;
         while !limits.is_out_of_time(nodes_searched, elapsed) && !stopped_by_stdin {
             // perform one iteration of selection, expansion, simulation, and backpropagation
-            Self::do_sesb(executor, root, tree, params);
+            Self::do_sesb(executor, root, tree, params)?;
 
             // update elapsed time and print stats
             if nodes_searched % 8 == 0 {
