@@ -357,7 +357,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         let first_play_urgency = f64::INFINITY;
         #[cfg(not(feature = "pure-mcts"))]
         let first_play_urgency = if node.visits() > 0 {
-            1.0 - node.winrate()
+            /*1.0 - */node.winrate()
         } else {
             0.5
         };
