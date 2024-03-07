@@ -353,14 +353,9 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         let exploration_factor = params.c_puct * f64::from(node.visits() + 1).sqrt();
         trace!(" [uct_best] exploration_factor = {exploration_factor}");
 
-        // #[cfg(feature = "pure-mcts")]
-        // let first_play_urgency = f64::INFINITY;
-        // #[cfg(not(feature = "pure-mcts"))]
-        // let first_play_urgency = if node.visits() > 0 {
-        //     /*1.0 - */node.winrate()
-        // } else {
-        //     0.5
-        // };
+        #[cfg(feature = "pure-mcts")]
+        let first_play_urgency = f64::INFINITY;
+        #[cfg(not(feature = "pure-mcts"))]
         let first_play_urgency = 0.5;
 
         let mut best_idx = 0;
