@@ -29,7 +29,7 @@ fn main() -> anyhow::Result<()> {
 
     if std::env::args_os().len() == 1 {
         // fast path to UCI:
-        return ugi::main_loop::<ataxxgen::Board>();
+        return ugi::main_loop::<ataxxgen::Board>(None);
     }
 
     let args: Vec<_> = std::env::args_os().collect();
@@ -68,9 +68,10 @@ fn main() -> anyhow::Result<()> {
         }
         "uci" => {
             let game = args.get(2).map_or("ataxx", |s| s.to_str().unwrap());
+            let model_path = args.get(3).map(|s| s.to_str().unwrap());
             match game {
-                "ataxx" => ugi::main_loop::<ataxxgen::Board>(),
-                "gomoku" => ugi::main_loop::<gomokugen::board::Board<9>>(),
+                "ataxx" => ugi::main_loop::<ataxxgen::Board>(model_path),
+                "gomoku" => ugi::main_loop::<gomokugen::board::Board<9>>(model_path),
                 _ => panic!("unknown game"),
             }
         }
