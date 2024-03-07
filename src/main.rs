@@ -54,14 +54,17 @@ fn main() -> anyhow::Result<()> {
                 .with_context(|| "invalid unicode!")?
                 .parse()
                 .with_context(|| "time_allocated_millis")?;
+            let model_path = args.get(5).map(|s| s.to_str().unwrap());
             match game {
                 "ataxx" => datagen::run_data_generation::<ataxxgen::Board>(
                     num_threads,
                     time_allocated_millis,
+                    model_path,
                 ),
                 "gomoku" => datagen::run_data_generation::<gomokugen::board::Board<9>>(
                     num_threads,
                     time_allocated_millis,
+                    model_path,
                 ),
                 _ => panic!("unknown game"),
             }

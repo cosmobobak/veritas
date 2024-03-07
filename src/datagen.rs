@@ -159,7 +159,7 @@ fn self_play_worker_thread<G: GameImpl>(
     Ok(())
 }
 
-pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_millis: u128) -> anyhow::Result<()> {
+pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_millis: u128, model_path: Option<&str>) -> anyhow::Result<()> {
     let date = chrono::Local::now().format("%Y-%m-%d-%H-%M-%S");
     let save_folder = format!("data/{date}");
     std::fs::create_dir_all(&save_folder).unwrap();
@@ -168,7 +168,7 @@ pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_milli
     let mut threads = Vec::new();
 
     // Load an onnx file into a Graph.
-    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./ataxx-bootstrap-t4.onnx", false).unwrap();
+    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path(model_path.unwrap_or("model.onnx"), false).unwrap();
     // Optimise the graph.
     let graph = kn_graph::optimizer::optimize_graph(&raw_graph, OptimizerSettings::default());
     // Deallocate the raw graph.
