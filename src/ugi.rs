@@ -64,7 +64,7 @@ fn stdin_reader_worker(sender: mpsc::Sender<String>) {
 
 /// The main loop of the Universal Game Interface (UGI).
 #[allow(clippy::too_many_lines)]
-pub fn main_loop<G: GameImpl>() -> anyhow::Result<()> {
+pub fn main_loop<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<()> {
     let stdin = Mutex::new(stdin_reader());
 
     let version_extension = if cfg!(feature = "final-release") {
@@ -75,7 +75,7 @@ pub fn main_loop<G: GameImpl>() -> anyhow::Result<()> {
     println!("{NAME} {VERSION}{version_extension} by Cosmo");
 
     // Load an onnx file into a Graph.
-    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./model.onnx", false).unwrap();
+    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path(net_path.unwrap_or("./model.onnx"), false).unwrap();
     // Optimise the graph.
     let graph = kn_graph::optimizer::optimize_graph(&raw_graph, OptimizerSettings::default());
     // Deallocate the raw graph.

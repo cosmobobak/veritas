@@ -194,7 +194,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
     }
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
-    fn do_sesb(executor: &ExecutorHandle<G>, root: &G, tree: &mut Vec<Node<G>>, params: &Params) {
+    fn do_sesb(executor: &ExecutorHandle<G>, root: &G, tree: &mut Vec<Node<G>>, params: &Params) -> anyhow::Result<()> {
         trace!("Engine::do_sesb(root, tree, params)");
 
         // select
@@ -228,13 +228,11 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                     // send the board to the executor
                     executor
                         .sender
-                        .send(board_state)
-                        .expect("failed to send board to executor");
+                        .send(board_state)?;
                     // wait for the result
                     (policy, value) = executor
                         .receiver
-                        .recv()
-                        .expect("failed to receive value from executor");
+                        .recv()?;
                     uniform = false;
                 }
 
@@ -265,6 +263,8 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 Self::backpropagate(tree, node, value);
             }
         };
+
+        Ok(())
     }
 
     /// Descends the tree, selecting the best node at each step.
