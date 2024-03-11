@@ -61,7 +61,12 @@ fn main() -> anyhow::Result<()> {
                     time_allocated_millis,
                     model_path,
                 ),
-                "gomoku" => datagen::run_data_generation::<gomokugen::board::Board<9>>(
+                "gomoku9" => datagen::run_data_generation::<gomokugen::board::Board<9>>(
+                    num_threads,
+                    time_allocated_millis,
+                    model_path,
+                ),
+                "gomoku15" => datagen::run_data_generation::<gomokugen::board::Board<15>>(
                     num_threads,
                     time_allocated_millis,
                     model_path,
@@ -74,7 +79,8 @@ fn main() -> anyhow::Result<()> {
             let model_path = args.get(3).map(|s| s.to_str().unwrap());
             match game {
                 "ataxx" => ugi::main_loop::<ataxxgen::Board>(model_path),
-                "gomoku" => ugi::main_loop::<gomokugen::board::Board<9>>(model_path),
+                "gomoku9" => ugi::main_loop::<gomokugen::board::Board<9>>(model_path),
+                "gomoku15" => ugi::main_loop::<gomokugen::board::Board<15>>(model_path),
                 _ => panic!("unknown game"),
             }
         }

@@ -127,6 +127,54 @@ impl GameImpl for gomokugen::board::Board<9> {
     }
 }
 
+impl MovePolicyIndex for gomokugen::board::Move<15> {
+    fn policy_index(&self) -> usize {
+        self.index()
+    }
+}
+
+impl GameImpl for gomokugen::board::Board<15> {
+    const POLICY_DIM: usize = 15 * 15;
+    type Move = gomokugen::board::Move<15>;
+    fn to_move(&self) -> Player {
+        match self.turn() {
+            gomokugen::board::Player::None => Player::None,
+            gomokugen::board::Player::X => Player::First,
+            gomokugen::board::Player::O => Player::Second,
+        }
+    }
+    fn outcome(&self) -> Option<Player> {
+        match self.outcome() {
+            None => None,
+            Some(gomokugen::board::Player::None) => Some(Player::None),
+            Some(gomokugen::board::Player::X) => Some(Player::First),
+            Some(gomokugen::board::Player::O) => Some(Player::Second),
+        }
+    }
+    fn make_move(&mut self, mv: Self::Move) {
+        self.make_move(mv);
+    }
+    fn generate_moves(&self, f: impl FnMut(Self::Move) -> bool) {
+        self.generate_moves(f);
+    }
+    fn fen(&self) -> String {
+        self.fen()
+    }
+    fn fill_feature_map(&self, mut index_callback: impl FnMut(usize)) {
+        let to_move = self.turn();
+        self.feature_map(|i, c| {
+            let index = i + usize::from(c != to_move) * 15 * 15;
+            index_callback(index);
+        });
+    }
+    fn tensor_dims(batch_size: usize) -> kn_graph::ndarray::IxDyn {
+        kn_graph::ndarray::IxDyn(&[batch_size, 2 * 15 * 15])
+    }
+    fn make_random_move(&mut self, rng: impl FnMut(usize, usize) -> usize) {
+        self.make_random_move(rng);
+    }
+}
+
 impl MovePolicyIndex for ataxxgen::Move {
     fn policy_index(&self) -> usize {
         self.index()
