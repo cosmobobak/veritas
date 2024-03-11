@@ -85,7 +85,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
     }
 
     /// Runs the engine.
-    pub fn go(&mut self) -> SearchResults<G> {
+    pub fn go(&mut self) -> anyhow::Result<SearchResults<G>> {
         trace!("Engine::go()");
 
         Self::search(
@@ -94,16 +94,16 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             &mut self.tree,
             &self.params,
             &self.limits,
-        );
+        )?;
 
         let best_move = self.tree[0].best_move(&self.tree);
 
         let root_dist = self.tree[0].dist(&self.tree);
 
-        SearchResults {
+        Ok(SearchResults {
             best_move,
             root_dist,
-        }
+        })
     }
 
     /// Repeat the search loop until the time limit is reached.
@@ -113,7 +113,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         tree: &mut Vec<Node<G>>,
         params: &Params,
         limits: &Limits,
-    ) {
+    ) -> anyhow::Result<()> {
         #![allow(clippy::cast_precision_loss)]
         trace!("Engine::search(root, tree, params, limits)");
 
@@ -124,17 +124,22 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         if tree.is_empty() {
             // create the root node
             tree.push(Node::new(Handle::null(), 0));
-            // send the root to the executor
-            executor
-                .sender
-                .send(*root)
-                .expect("failed to send board to executor");
-            // wait for the result
-            let (policy, _value) = executor
-                .receiver
-                .recv()
-                .expect("failed to receive value from executor");
-            tree[0].expand(*root, &policy);
+            #[cfg(feature = "pure-mcts")]
+            {
+                tree[0].expand(*root, &[], true);
+            }
+            #[cfg(not(feature = "pure-mcts"))]
+            {
+                // send the root to the executor
+                executor
+                    .sender
+                    .send(*root)?;
+                // wait for the result
+                let (policy, _value) = executor
+                    .receiver
+                    .recv()?;
+                tree[0].expand(*root, &policy, false);
+            }
         }
 
         // let mut log = std::io::BufWriter::new(std::fs::File::create("log.txt").unwrap());
@@ -142,17 +147,17 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         let mut stopped_by_stdin = false;
         while !limits.is_out_of_time(nodes_searched, elapsed) && !stopped_by_stdin {
             // perform one iteration of selection, expansion, simulation, and backpropagation
-            Self::do_sesb(executor, root, tree, params);
+            Self::do_sesb(executor, root, tree, params)?;
 
             // update elapsed time and print stats
-            if nodes_searched % 1024 == 0 {
+            if nodes_searched % 8 == 0 {
                 if params.do_stdout {
                     print!(
                         "info nodes {} time {} nps {:.0} score q {:.1} pv",
                         nodes_searched,
                         elapsed,
                         nodes_searched as f64 / (elapsed as f64 / 1000.0),
-                        tree[0].winrate() * 100.0
+                        (1.0 - tree[0].winrate()) * 100.0
                     );
                     Self::print_pv(root, tree);
                 }
@@ -184,10 +189,12 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             "Engine::search: finished search loop with {} entries in tree.",
             tree.len()
         );
+
+        Ok(())
     }
 
     /// Performs one iteration of selection, expansion, simulation, and backpropagation.
-    fn do_sesb(executor: &ExecutorHandle<G>, root: &G, tree: &mut Vec<Node<G>>, params: &Params) {
+    fn do_sesb(executor: &ExecutorHandle<G>, root: &G, tree: &mut Vec<Node<G>>, params: &Params) -> anyhow::Result<()> {
         trace!("Engine::do_sesb(root, tree, params)");
 
         // select
@@ -208,19 +215,29 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 board_state.make_move(mv);
 
                 // simulate
-                // send the board to the executor
-                executor
-                    .sender
-                    .send(board_state)
-                    .expect("failed to send board to executor");
-                // wait for the result
-                let (policy, value) = executor
-                    .receiver
-                    .recv()
-                    .expect("failed to receive value from executor");
+                let (policy, value, uniform);
+                #[cfg(feature = "pure-mcts")]
+                {
+                    // if we're doing pure MCTS, we do a random rollout.
+                    value = board_state.rollout();
+                    policy = [];
+                    uniform = true;
+                }
+                #[cfg(not(feature = "pure-mcts"))]
+                {
+                    // send the board to the executor
+                    executor
+                        .sender
+                        .send(board_state)?;
+                    // wait for the result
+                    (policy, value) = executor
+                        .receiver
+                        .recv()?;
+                    uniform = false;
+                }
 
                 // expand this node
-                tree[new_node.index()].expand(board_state, &policy);
+                tree[new_node.index()].expand(board_state, &policy, uniform);
 
                 // backpropagate
                 Self::backpropagate(tree, new_node, 1.0 - f64::from(value));
@@ -246,6 +263,8 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 Self::backpropagate(tree, node, value);
             }
         };
+
+        Ok(())
     }
 
     /// Descends the tree, selecting the best node at each step.
@@ -334,11 +353,10 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         let exploration_factor = params.c_puct * f64::from(node.visits() + 1).sqrt();
         trace!(" [uct_best] exploration_factor = {exploration_factor}");
 
-        let first_play_urgency = if node.visits() > 0 {
-            1.0 - node.winrate()
-        } else {
-            0.5
-        };
+        #[cfg(feature = "pure-mcts")]
+        let first_play_urgency = f64::INFINITY;
+        #[cfg(not(feature = "pure-mcts"))]
+        let first_play_urgency = 0.5;
 
         let mut best_idx = 0;
         let mut best_value = f64::NEG_INFINITY;

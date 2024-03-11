@@ -64,7 +64,7 @@ fn stdin_reader_worker(sender: mpsc::Sender<String>) {
 
 /// The main loop of the Universal Game Interface (UGI).
 #[allow(clippy::too_many_lines)]
-pub fn main_loop<G: GameImpl>() {
+pub fn main_loop<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<()> {
     let stdin = Mutex::new(stdin_reader());
 
     let version_extension = if cfg!(feature = "final-release") {
@@ -75,13 +75,13 @@ pub fn main_loop<G: GameImpl>() {
     println!("{NAME} {VERSION}{version_extension} by Cosmo");
 
     // Load an onnx file into a Graph.
-    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path("./model.onnx", false).unwrap();
+    let raw_graph = kn_graph::onnx::load_graph_from_onnx_path(net_path.unwrap_or("./model.onnx"), false).unwrap();
     // Optimise the graph.
     let graph = kn_graph::optimizer::optimize_graph(&raw_graph, OptimizerSettings::default());
     // Deallocate the raw graph.
     std::mem::drop(raw_graph);
 
-    let executor_handles = batching::executor(&graph, 1);
+    let executor_handles = batching::executor(&graph, 1)?;
 
     let default_params = Params::default().with_stdin_rx(&stdin).with_stdout(true);
     let default_limits = Limits::default();
@@ -158,7 +158,7 @@ pub fn main_loop<G: GameImpl>() {
                 let SearchResults {
                     best_move,
                     root_dist,
-                } = engine.go();
+                } = engine.go()?;
                 info!("best move from search: {}", best_move);
                 info!("root rollout distribution: {:?}", root_dist);
                 println!("bestmove {best_move}");
@@ -207,6 +207,8 @@ pub fn main_loop<G: GameImpl>() {
     }
 
     STDIN_READER_THREAD_KEEP_RUNNING.store(false, Ordering::SeqCst);
+
+    Ok(())
 }
 
 fn make_move_on_engine<G: GameImpl>(play: &str, engine: &mut Engine<'_, G>) -> ControlFlow<()> {
