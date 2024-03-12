@@ -107,10 +107,10 @@ pub fn main_loop<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<()> {
                 break;
             }
             "isready" => println!("readyok"),
-            "ugi" => {
+            protocol @ ("ugi" | "uai" | "uci") => {
                 println!("id name {NAME} {VERSION}{version_extension}");
                 println!("id author Cosmo");
-                println!("ugiok");
+                println!("{protocol}ok");
             }
             "show" => {
                 println!("info string position fen {}", engine.root().fen());
