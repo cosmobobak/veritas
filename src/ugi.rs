@@ -112,6 +112,9 @@ pub fn main_loop<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<()> {
                 println!("id author Cosmo");
                 println!("{protocol}ok");
             }
+            "uginewgame" | "ucinewgame" | "uainewgame" => {
+                engine.set_position(&G::default());
+            }
             "show" => {
                 println!("info string position fen {}", engine.root().fen());
                 let board_string = engine.root().to_string();
