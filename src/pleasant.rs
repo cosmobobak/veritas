@@ -20,7 +20,7 @@ pub fn play_game_vs_user<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<
     let mut user_to_move = user_goes_first;
 
     let params = Params::default();
-    let limits = Limits::default();
+    let limits = Limits::movetime(1000);
     let executor = batching::executor(&graph, 1)?;
     let mut engine = crate::engine::Engine::new(params, limits, &starting_position, executor.into_iter().next().unwrap());
     let mut board = starting_position;
