@@ -74,7 +74,7 @@ fn main() -> anyhow::Result<()> {
                 _ => panic!("unknown game"),
             }
         }
-        "uci" => {
+        "ugi" | "uai" | "uci" => {
             let game = args.get(2).map_or("ataxx", |s| s.to_str().unwrap());
             let model_path = args.get(3).map(|s| s.to_str().unwrap());
             match game {
