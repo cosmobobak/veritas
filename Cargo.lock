@@ -439,7 +439,7 @@ checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 [[package]]
 name = "gomokugen"
 version = "0.1.0"
-source = "git+https://github.com/cosmobobak/gomokugen#c7f4612927c0cfac1c0ad36099d2b7bfc8af5e21"
+source = "git+https://github.com/cosmobobak/gomokugen#2af7633b4e57b63f9f96ffe58aaaebc54f1358bb"
 dependencies = [
  "smallvec",
 ]
