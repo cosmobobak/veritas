@@ -15,6 +15,7 @@ mod node;
 mod params;
 mod timemgmt;
 mod ugi;
+mod pleasant;
 
 /// The name of the engine.
 pub static NAME: &str = "Veritas";
@@ -81,6 +82,16 @@ fn main() -> anyhow::Result<()> {
                 "ataxx" => ugi::main_loop::<ataxxgen::Board>(model_path),
                 "gomoku9" => ugi::main_loop::<gomokugen::board::Board<9>>(model_path),
                 "gomoku15" => ugi::main_loop::<gomokugen::board::Board<15>>(model_path),
+                _ => panic!("unknown game"),
+            }
+        }
+        "play" => {
+            let game = args.get(2).map_or("ataxx", |s| s.to_str().unwrap());
+            let model_path = args.get(3).map(|s| s.to_str().unwrap());
+            match game {
+                "ataxx" => pleasant::play_game_vs_user::<ataxxgen::Board>(model_path),
+                "gomoku9" => pleasant::play_game_vs_user::<gomokugen::board::Board<9>>(model_path),
+                "gomoku15" => pleasant::play_game_vs_user::<gomokugen::board::Board<15>>(model_path),
                 _ => panic!("unknown game"),
             }
         }

@@ -12,6 +12,16 @@ pub enum Player {
     Second,
 }
 
+impl Player {
+    pub const fn opposite(self) -> Self {
+        match self {
+            Self::None => Self::None,
+            Self::First => Self::Second,
+            Self::Second => Self::First,
+        }
+    }
+}
+
 /// Allows the extraction of the index of a move in a policy distribution.
 pub trait MovePolicyIndex {
     /// The index of the move in the policy distribution.
@@ -35,6 +45,7 @@ pub trait GameImpl:
     /// Make a move.
     fn make_move(&mut self, mv: Self::Move);
     /// Generate a list of legal moves.
+    /// Iteration short-circuits if the callback returns `true`.
     fn generate_moves(&self, f: impl FnMut(Self::Move) -> bool);
     /// Return a textual representation of the game state.
     fn fen(&self) -> String;

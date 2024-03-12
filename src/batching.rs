@@ -129,7 +129,7 @@ pub fn executor<G: GameImpl>(graph: &Graph, batch_size: usize) -> anyhow::Result
     #[cfg(not(feature = "pure-mcts"))]
     let cuda_device = {
         let cd = CudaDevice::new(0).map_err(|_| anyhow::anyhow!("No cuda device available"))?;
-        println!("Using device: {}", cd.name());
+        log::info!("Using device: {}", cd.name());
         Some(cd)
     };
     let (mut executor, handles) = Executor::new(cuda_device, batch_size, graph);
