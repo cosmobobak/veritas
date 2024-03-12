@@ -11,17 +11,21 @@ use crate::{
     batching::{self, ExecutorHandle},
     engine::{Engine, SearchResults},
     game::{GameImpl, Player},
-    params::Params,
+    params::Params, timemgmt::Limits,
 };
 
 struct GameRecord<G: GameImpl> {
     root: G,
-    move_list: Vec<(G::Move, Vec<u64>)>,
+    move_list: Vec<(G::Move, Vec<u64>, bool)>,
     outcome: Option<Player>,
 }
 
 static GAMES_GENERATED: AtomicUsize = AtomicUsize::new(0);
 static POSITIONS_GENERATED: AtomicUsize = AtomicUsize::new(0);
+
+const PLAYOUT_CAP_RANDOMISATION_FREQ: f64 = 0.25;
+const HI_PLAYOUT_CAP: u64 = 800;
+const LO_PLAYOUT_CAP: u64 = 200;
 
 fn game_record_writer_thread<G: GameImpl>(save_folder: &str, recv: std::sync::mpsc::Receiver<GameRecord<G>>) -> anyhow::Result<()> {
     let mut positions = BufWriter::new(File::create(format!("{save_folder}/positions.csv"))?);
@@ -30,7 +34,12 @@ fn game_record_writer_thread<G: GameImpl>(save_folder: &str, recv: std::sync::mp
 
     for game in recv {
         let mut board = game.root;
-        for (best_move, root_dist) in game.move_list {
+        for (best_move, root_dist, hq_move) in game.move_list {
+            if !hq_move {
+                // don't save positions from low quality moves
+                board.make_move(best_move);
+                continue;
+            }
             let ixdyn = G::tensor_dims(1);
             let mut feature_map = vec![0; ixdyn.size()];
             let to_move = board.to_move();
@@ -132,13 +141,20 @@ fn self_play_worker_thread<G: GameImpl>(
 
         while board.outcome().is_none() {
             engine.set_position(&board);
+            let high_quality_move = rng.gen_bool(PLAYOUT_CAP_RANDOMISATION_FREQ);
+            let playout_cap = if high_quality_move {
+                HI_PLAYOUT_CAP
+            } else {
+                LO_PLAYOUT_CAP
+            };
+            engine.set_limits(Limits::nodes(playout_cap));
             let SearchResults {
                 best_move,
                 root_dist,
             } = engine.go()?;
             assert_eq!(root_dist.len(), G::POLICY_DIM);
             board.make_move(best_move);
-            game.move_list.push((best_move, root_dist));
+            game.move_list.push((best_move, root_dist, high_quality_move));
         }
 
         if let Some(outcome) = board.outcome() {

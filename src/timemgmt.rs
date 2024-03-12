@@ -35,14 +35,14 @@ pub struct Limits {
 }
 
 impl Limits {
-    const fn movetime(millis: u64) -> Self {
+    pub const fn movetime(millis: u64) -> Self {
         Self {
             nodes: None,
             time: Some(Clock::Fixed { millis }),
         }
     }
 
-    const fn nodes(nodes: u64) -> Self {
+    pub const fn nodes(nodes: u64) -> Self {
         Self {
             nodes: Some(nodes),
             time: None,
