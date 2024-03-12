@@ -32,7 +32,7 @@ pub fn play_game_vs_user<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<
             std::io::stdin().read_line(&mut user_move).unwrap();
             let user_move = user_move.trim();
             if user_move == "quit" {
-                break;
+                return Ok(());
             }
             if let Ok(m) = user_move.parse() {
                 let mut legal = false;
@@ -45,6 +45,8 @@ pub fn play_game_vs_user<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<
                 if legal {
                     board.make_move(m);
                     engine.set_position(&board);
+                    // clear the screen
+                    print!("\x1B[2J\x1B[1;1H");
                     println!("{}", engine.root());
                     user_to_move = false;
                 } else {
@@ -57,6 +59,8 @@ pub fn play_game_vs_user<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<
             let SearchResults { best_move, .. } = engine.go()?;
             board.make_move(best_move);
             engine.set_position(&board);
+            // clear the screen
+            print!("\x1B[2J\x1B[1;1H");
             println!("{}", engine.root());
             user_to_move = true;
         }
