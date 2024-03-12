@@ -147,7 +147,9 @@ pub fn main_loop<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<()> {
                 _ => println!("response unknown query: {query}"),
             },
             go if go.starts_with("go") => {
-                let limits: Limits = if let Ok(limits) = go.trim_start_matches("go").trim().parse()
+                let limits_text = go.trim_start_matches("go").trim();
+                let limits_text = G::player_substitute(limits_text);
+                let limits: Limits = if let Ok(limits) = limits_text.parse()
                 {
                     limits
                 } else {

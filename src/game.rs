@@ -77,6 +77,9 @@ pub trait GameImpl:
             1.0 - value_x_pov
         }
     }
+    /// Textually substitute p1time/p2time/p1inc/p2inc
+    /// from an alternate representation.
+    fn player_substitute(limits_text: &str) -> String;
 }
 
 impl MovePolicyIndex for gomokugen::board::Move<9> {
@@ -125,6 +128,13 @@ impl GameImpl for gomokugen::board::Board<9> {
     fn make_random_move(&mut self, rng: impl FnMut(usize, usize) -> usize) {
         self.make_random_move(rng);
     }
+    fn player_substitute(limits_text: &str) -> String {
+        limits_text
+            .replace("btime", "p1time")
+            .replace("wtime", "p2time")
+            .replace("binc", "p1inc")
+            .replace("winc", "p2inc")
+    }
 }
 
 impl MovePolicyIndex for gomokugen::board::Move<15> {
@@ -172,6 +182,13 @@ impl GameImpl for gomokugen::board::Board<15> {
     }
     fn make_random_move(&mut self, rng: impl FnMut(usize, usize) -> usize) {
         self.make_random_move(rng);
+    }
+    fn player_substitute(limits_text: &str) -> String {
+        limits_text
+            .replace("btime", "p1time")
+            .replace("wtime", "p2time")
+            .replace("binc", "p1inc")
+            .replace("winc", "p2inc")
     }
 }
 
@@ -224,5 +241,13 @@ impl GameImpl for ataxxgen::Board {
 
     fn make_random_move(&mut self, rng: impl FnMut(usize, usize) -> usize) {
         self.make_random_move(rng);
+    }
+
+    fn player_substitute(limits_text: &str) -> String {
+        limits_text
+            .replace("btime", "p1time")
+            .replace("wtime", "p2time")
+            .replace("binc", "p1inc")
+            .replace("winc", "p2inc")
     }
 }
