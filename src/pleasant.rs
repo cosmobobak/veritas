@@ -11,6 +11,8 @@ pub fn play_game_vs_user<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<
     std::mem::drop(raw_graph);
 
     let starting_position = G::default();
+    // clear the screen
+    print!("\x1B[2J\x1B[1;1H");
     println!("{starting_position}");
 
     let mut response = String::new();
