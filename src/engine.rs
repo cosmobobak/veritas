@@ -434,7 +434,11 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             child = node.sibling();
         }
         for (idx, value) in values.into_iter().take(edges.len()).enumerate() {
+            let prob = edges[idx].probability();
+            assert!((0.0..=1.0).contains(&prob), "invalid probability: {prob}");
             if let Some((handle, value)) = value {
+                // use probability to break ties
+                let value = value + prob;
                 trace!(" [expanded] edge = {idx}, value = {value}");
                 if value > best_value {
                     best_idx = idx;
@@ -442,14 +446,10 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                     best_child = handle;
                 }
             } else {
-                let value = edges[idx].probability();
-                trace!(
-                    " [dangling] edge = {idx}, value = {value}, p(edge) = {}",
-                    edges[idx].probability()
-                );
-                if value > best_value {
+                trace!(" [dangling] edge = {idx}, value = None, p(edge) = {prob}");
+                if prob > best_value {
                     best_idx = idx;
-                    best_value = value;
+                    best_value = prob;
                     best_child = Handle::null();
                 }
             }
