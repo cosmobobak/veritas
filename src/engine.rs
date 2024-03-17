@@ -240,7 +240,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 tree[new_node.index()].expand(board_state, &policy, uniform);
 
                 // backpropagate
-                Self::backpropagate(tree, new_node, 1.0 - f64::from(value));
+                Self::backpropagate(tree, new_node, f64::from(value));
             }
             SelectionResult::Terminal {
                 node_index: best_node,
