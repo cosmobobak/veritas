@@ -2,6 +2,7 @@ use std::sync::{mpsc, Mutex};
 
 pub struct Params<'a> {
     pub c_puct: f64,
+    pub root_policy_softmax_temp: f32,
     /// A handle to a receiver for stdin.
     pub stdin_rx: Option<&'a Mutex<mpsc::Receiver<String>>>,
     /// Whether to print search info.
@@ -12,6 +13,7 @@ impl Default for Params<'_> {
     fn default() -> Self {
         Self {
             c_puct: 2.50,
+            root_policy_softmax_temp: 1.3,
             stdin_rx: None,
             do_stdout: false,
         }

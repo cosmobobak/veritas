@@ -135,9 +135,14 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                     .sender
                     .send(*root)?;
                 // wait for the result
-                let (policy, _value) = executor
+                let (mut policy, _value) = executor
                     .receiver
                     .recv()?;
+                // apply root softmax temperature
+                for p in &mut policy {
+                    // these are logits, so we can just divide by the temperature
+                    *p /= params.root_policy_softmax_temp;
+                }
                 tree[0].expand(*root, &policy, false);
             }
         }
@@ -253,9 +258,9 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                     Some(Player::None) => 0.5, // draw
                     Some(p) => {
                         if p == board_state.to_move() {
-                            1.0
-                        } else {
                             0.0
+                        } else {
+                            1.0
                         }
                     }
                 };
