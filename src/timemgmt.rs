@@ -8,22 +8,30 @@ enum Clock {
         millis: u64,
     },
     Dynamic {
-        our_base: u64,
-        our_increment: u64,
-        their_base: u64,
-        their_increment: u64,
+        p1_base: u64,
+        p1_inc: u64,
+        p2_base: u64,
+        p2_inc: u64,
     },
 }
 
 impl Clock {
-    fn time_limit(self) -> u64 {
+    fn time_limit(self, is_p1: bool) -> u64 {
         match self {
             Self::Fixed { millis } => millis,
             Self::Dynamic {
-                our_base,
-                our_increment,
-                ..
-            } => (our_base / 20 + 3 * our_increment / 4).min(our_base - 50),
+                p1_base,
+                p1_inc,
+                p2_base,
+                p2_inc,
+            } => {
+                let (our_base, our_increment, _, _) = if is_p1 {
+                    (p1_base, p1_inc, p2_base, p2_inc)
+                } else {
+                    (p2_base, p2_inc, p1_base, p1_inc)
+                };
+                (our_base / 20 + 3 * our_increment / 4).min(our_base - 50)
+            }
         }
     }
 }
@@ -58,10 +66,10 @@ impl Limits {
         Self {
             nodes: None,
             time: Some(Clock::Dynamic {
-                our_base,
-                our_increment,
-                their_base,
-                their_increment,
+                p1_base: our_base,
+                p1_inc: our_increment,
+                p2_base: their_base,
+                p2_inc: their_increment,
             }),
         }
     }
@@ -73,14 +81,14 @@ impl Limits {
         }
     }
 
-    pub fn is_out_of_time(&self, nodes_searched: u64, elapsed: u64) -> bool {
+    pub fn is_out_of_time(&self, nodes_searched: u64, elapsed: u64, is_p1: bool) -> bool {
         if let Some(nodes) = self.nodes {
             if nodes_searched >= nodes {
                 return true;
             }
         }
         if let Some(clock) = self.time {
-            let time_limit = clock.time_limit();
+            let time_limit = clock.time_limit(is_p1);
             if elapsed >= time_limit {
                 return true;
             }

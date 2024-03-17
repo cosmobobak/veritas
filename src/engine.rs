@@ -117,6 +117,8 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         #![allow(clippy::cast_precision_loss)]
         trace!("Engine::search(root, tree, params, limits)");
 
+        let is_p1 = root.to_move() == Player::First;
+
         let start_time = Instant::now();
         let mut nodes_searched = 0;
         let mut elapsed = 0;
@@ -150,7 +152,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         // let mut log = std::io::BufWriter::new(std::fs::File::create("log.txt").unwrap());
 
         let mut stopped_by_stdin = false;
-        while !limits.is_out_of_time(nodes_searched, elapsed) && !stopped_by_stdin {
+        while !limits.is_out_of_time(nodes_searched, elapsed, is_p1) && !stopped_by_stdin {
             // perform one iteration of selection, expansion, simulation, and backpropagation
             Self::do_sesb(executor, root, tree, params)?;
 
