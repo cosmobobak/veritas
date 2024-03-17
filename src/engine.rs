@@ -155,37 +155,36 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             Self::do_sesb(executor, root, tree, params)?;
 
             // update elapsed time and print stats
-            if nodes_searched % 8 == 0 {
-                if params.do_stdout {
-                    print!(
-                        "info nodes {} time {} nps {:.0} score q {:.1} pv",
-                        nodes_searched,
-                        elapsed,
-                        nodes_searched as f64 / (elapsed as f64 / 1000.0),
-                        (1.0 - tree[0].winrate()) * 100.0
-                    );
-                    Self::print_pv(root, tree);
-                }
-                elapsed =
-                    u64::try_from(start_time.elapsed().as_millis()).expect("elapsed time overflow");
-                stopped_by_stdin =
-                    if let Some(Ok(cmd)) = params.stdin_rx.map(|m| m.lock().unwrap().try_recv()) {
-                        let cmd = cmd.trim();
-                        if cmd == "quit" {
-                            ugi::QUIT.store(true, Ordering::SeqCst);
-                        }
-                        debug!("received command: {}", cmd);
-                        true
-                    } else {
-                        false
-                    };
-                // write the root rollout distribution to log.txt
-                // let root_dist = tree[0].dist(tree);
-                // for visit_count in root_dist {
-                //     write!(log, "{visit_count},").unwrap();
-                // }
-                // writeln!(log).unwrap();
+            if params.do_stdout {
+                print!(
+                    "info nodes {} time {} nps {:.0} score q {:.1} pv",
+                    nodes_searched,
+                    elapsed,
+                    nodes_searched as f64 / (elapsed as f64 / 1000.0),
+                    (1.0 - tree[0].winrate()) * 100.0
+                );
+                Self::print_pv(root, tree);
             }
+            stopped_by_stdin =
+                if let Some(Ok(cmd)) = params.stdin_rx.map(|m| m.lock().unwrap().try_recv()) {
+                    let cmd = cmd.trim();
+                    if cmd == "quit" {
+                        ugi::QUIT.store(true, Ordering::SeqCst);
+                    }
+                    debug!("received command: {}", cmd);
+                    true
+                } else {
+                    false
+                };
+            elapsed =
+                u64::try_from(start_time.elapsed().as_millis()).expect("elapsed time overflow");
+            // write the root rollout distribution to log.txt
+            // let root_dist = tree[0].dist(tree);
+            // for visit_count in root_dist {
+            //     write!(log, "{visit_count},").unwrap();
+            // }
+            // writeln!(log).unwrap();
+            
             // update nodes searched
             nodes_searched += 1;
         }

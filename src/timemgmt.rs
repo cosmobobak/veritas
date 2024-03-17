@@ -16,14 +16,14 @@ enum Clock {
 }
 
 impl Clock {
-    const fn time_limit(self) -> u64 {
+    fn time_limit(self) -> u64 {
         match self {
             Self::Fixed { millis } => millis,
             Self::Dynamic {
                 our_base,
                 our_increment,
                 ..
-            } => our_base / 20 + 3 * our_increment / 4,
+            } => (our_base / 20 + 3 * our_increment / 4).min(our_base - 50),
         }
     }
 }
@@ -73,7 +73,7 @@ impl Limits {
         }
     }
 
-    pub const fn is_out_of_time(&self, nodes_searched: u64, elapsed: u64) -> bool {
+    pub fn is_out_of_time(&self, nodes_searched: u64, elapsed: u64) -> bool {
         if let Some(nodes) = self.nodes {
             if nodes_searched >= nodes {
                 return true;
