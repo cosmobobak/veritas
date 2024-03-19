@@ -569,7 +569,7 @@ dependencies = [
 
 [[package]]
 name = "kn-cuda-eval"
-version = "0.6.1"
+version = "0.7.2"
 dependencies = [
  "bytemuck",
  "cc",
@@ -584,7 +584,7 @@ dependencies = [
 
 [[package]]
 name = "kn-cuda-sys"
-version = "0.6.1"
+version = "0.7.2"
 dependencies = [
  "bindgen",
  "bytemuck",
@@ -593,7 +593,7 @@ dependencies = [
 
 [[package]]
 name = "kn-graph"
-version = "0.6.1"
+version = "0.7.2"
 dependencies = [
  "bytemuck",
  "byteorder",
