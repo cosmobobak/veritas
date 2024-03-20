@@ -92,6 +92,8 @@ fn game_record_writer_thread<G: GameImpl>(save_folder: &str, recv: std::sync::mp
     Ok(())
 }
 
+static STDOUT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[allow(clippy::too_many_lines)]
 fn self_play_worker_thread<G: GameImpl>(
     time_allocated_millis: u128,
@@ -109,17 +111,17 @@ fn self_play_worker_thread<G: GameImpl>(
     let mut rng = rand::thread_rng();
 
     while start_time.elapsed().as_millis() < time_allocated_millis {
-        let prev = GAMES_GENERATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        GAMES_GENERATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-        if prev % 32 == 0 {
-            print!(
-                "\rGenerated {} games at {:.2} pos/sec",
-                GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed),
-                POSITIONS_GENERATED.load(std::sync::atomic::Ordering::Relaxed) as f64
-                    / start_time.elapsed().as_secs_f64()
-            );
-            std::io::stdout().flush()?;
-        }
+        let stdout_lock = STDOUT_LOCK.lock().unwrap();
+        print!(
+            "\rGenerated {} games at {:.2} pos/sec",
+            GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed),
+            POSITIONS_GENERATED.load(std::sync::atomic::Ordering::Relaxed) as f64
+                / start_time.elapsed().as_secs_f64()
+        );
+        std::io::stdout().flush()?;
+        drop(stdout_lock);
 
         let mut board = G::default();
         for _ in 0..8 + rng.gen_range(0..=1) {
