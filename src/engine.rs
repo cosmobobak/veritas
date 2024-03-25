@@ -96,7 +96,13 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             &self.limits,
         )?;
 
-        let best_move = self.tree[0].best_move(&self.tree);
+        let (edge_idx, _) = Self::rollouts_best(&self.tree, 0);
+        let edge = self.tree[0]
+            .edges()
+            .expect("node has no edges")
+            .get(edge_idx)
+            .expect("edge index out of bounds");
+        let best_move = edge.get_move(false);
 
         let root_dist = self.tree[0].dist(&self.tree);
 
