@@ -13,9 +13,9 @@ mod engine;
 mod game;
 mod node;
 mod params;
+mod pleasant;
 mod timemgmt;
 mod ugi;
-mod pleasant;
 
 /// The name of the engine.
 pub static NAME: &str = "Veritas";
@@ -37,7 +37,8 @@ fn main() -> anyhow::Result<()> {
 
     match args[1].to_str().unwrap() {
         "datagen" => {
-            let game = args.get(2)
+            let game = args
+                .get(2)
                 .with_context(|| "did not find <GAME> argument!")?
                 .to_str()
                 .with_context(|| "invalid unicode!")?;
@@ -57,11 +58,9 @@ fn main() -> anyhow::Result<()> {
                 .with_context(|| "time_allocated_millis")?;
             let model_path = args.get(5).map(|s| s.to_str().unwrap());
             match game {
-                "ataxx" => datagen::run_data_generation::<ataxxgen::Board>(
-                    num_threads,
-                    time_allocated_millis,
-                    model_path,
-                ),
+                "ataxx" => {
+                    datagen::run_data_generation::<ataxxgen::Board>(num_threads, time_allocated_millis, model_path)
+                }
                 "gomoku9" => datagen::run_data_generation::<gomokugen::board::Board<9>>(
                     num_threads,
                     time_allocated_millis,

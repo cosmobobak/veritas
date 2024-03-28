@@ -31,9 +31,7 @@ pub trait MovePolicyIndex {
 /// A wrapper around a game implementation.
 /// Allows `veritas` to be generic over different game implementations.
 #[allow(clippy::module_name_repetitions)]
-pub trait GameImpl:
-    Default + Display + Debug + Copy + Clone + FromStr + Send + Sync + 'static
-{
+pub trait GameImpl: Default + Display + Debug + Copy + Clone + FromStr + Send + Sync + 'static {
     /// The dimensionality of the policy.
     const POLICY_DIM: usize;
     /// The associated move type.

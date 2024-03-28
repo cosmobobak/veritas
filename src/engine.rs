@@ -35,32 +35,14 @@ pub struct Engine<'a, G: GameImpl> {
 }
 
 enum SelectionResult<G: GameImpl> {
-    NonTerminal {
-        node_index: usize,
-        edge_index: usize,
-        board_state: G,
-    },
-    Terminal {
-        node_index: usize,
-        board_state: G,
-    },
+    NonTerminal { node_index: usize, edge_index: usize, board_state: G },
+    Terminal { node_index: usize, board_state: G },
 }
 
 impl<'a, G: GameImpl> Engine<'a, G> {
     /// Creates a new engine.
-    pub const fn new(
-        params: Params<'a>,
-        limits: Limits,
-        root: &G,
-        eval_pipe: ExecutorHandle<G>,
-    ) -> Self {
-        Self {
-            params,
-            limits,
-            tree: Vec::new(),
-            root: *root,
-            eval_pipe,
-        }
+    pub const fn new(params: Params<'a>, limits: Limits, root: &G, eval_pipe: ExecutorHandle<G>) -> Self {
+        Self { params, limits, tree: Vec::new(), root: *root, eval_pipe }
     }
 
     pub const fn root(&self) -> G {
@@ -88,28 +70,15 @@ impl<'a, G: GameImpl> Engine<'a, G> {
     pub fn go(&mut self) -> anyhow::Result<SearchResults<G>> {
         trace!("Engine::go()");
 
-        Self::search(
-            &self.eval_pipe,
-            &self.root,
-            &mut self.tree,
-            &self.params,
-            &self.limits,
-        )?;
+        Self::search(&self.eval_pipe, &self.root, &mut self.tree, &self.params, &self.limits)?;
 
         let (edge_idx, _) = Self::rollouts_best(&self.tree, 0);
-        let edge = self.tree[0]
-            .edges()
-            .expect("node has no edges")
-            .get(edge_idx)
-            .expect("edge index out of bounds");
+        let edge = self.tree[0].edges().expect("node has no edges").get(edge_idx).expect("edge index out of bounds");
         let best_move = edge.get_move(false);
 
         let root_dist = self.tree[0].dist(&self.tree);
 
-        Ok(SearchResults {
-            best_move,
-            root_dist,
-        })
+        Ok(SearchResults { best_move, root_dist })
     }
 
     /// Repeat the search loop until the time limit is reached.
@@ -139,13 +108,9 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             #[cfg(not(feature = "pure-mcts"))]
             {
                 // send the root to the executor
-                executor
-                    .sender
-                    .send(*root)?;
+                executor.sender.send(*root)?;
                 // wait for the result
-                let (mut policy, _value) = executor
-                    .receiver
-                    .recv()?;
+                let (mut policy, _value) = executor.receiver.recv()?;
                 // apply root softmax temperature
                 for p in &mut policy {
                     // these are logits, so we can just divide by the temperature
@@ -173,34 +138,29 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 );
                 Self::print_pv(root, tree);
             }
-            stopped_by_stdin =
-                if let Some(Ok(cmd)) = params.stdin_rx.map(|m| m.lock().unwrap().try_recv()) {
-                    let cmd = cmd.trim();
-                    if cmd == "quit" {
-                        ugi::QUIT.store(true, Ordering::SeqCst);
-                    }
-                    debug!("received command: {}", cmd);
-                    true
-                } else {
-                    false
-                };
-            elapsed =
-                u64::try_from(start_time.elapsed().as_millis()).expect("elapsed time overflow");
+            stopped_by_stdin = if let Some(Ok(cmd)) = params.stdin_rx.map(|m| m.lock().unwrap().try_recv()) {
+                let cmd = cmd.trim();
+                if cmd == "quit" {
+                    ugi::QUIT.store(true, Ordering::SeqCst);
+                }
+                debug!("received command: {}", cmd);
+                true
+            } else {
+                false
+            };
+            elapsed = u64::try_from(start_time.elapsed().as_millis()).expect("elapsed time overflow");
             // write the root rollout distribution to log.txt
             // let root_dist = tree[0].dist(tree);
             // for visit_count in root_dist {
             //     write!(log, "{visit_count},").unwrap();
             // }
             // writeln!(log).unwrap();
-            
+
             // update nodes searched
             nodes_searched += 1;
         }
 
-        trace!(
-            "Engine::search: finished search loop with {} entries in tree.",
-            tree.len()
-        );
+        trace!("Engine::search: finished search loop with {} entries in tree.", tree.len());
 
         Ok(())
     }
@@ -213,11 +173,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         let selection = Self::select(root, tree, params, 0);
 
         match selection {
-            SelectionResult::NonTerminal {
-                node_index: best_node,
-                edge_index: edge_to_expand,
-                mut board_state,
-            } => {
+            SelectionResult::NonTerminal { node_index: best_node, edge_index: edge_to_expand, mut board_state } => {
                 // expand
                 let new_node = Self::expand(tree, params, best_node, edge_to_expand);
 
@@ -238,13 +194,9 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 #[cfg(not(feature = "pure-mcts"))]
                 {
                     // send the board to the executor
-                    executor
-                        .sender
-                        .send(board_state)?;
+                    executor.sender.send(board_state)?;
                     // wait for the result
-                    (policy, value) = executor
-                        .receiver
-                        .recv()?;
+                    (policy, value) = executor.receiver.recv()?;
                     uniform = false;
                 }
 
@@ -254,10 +206,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 // backpropagate
                 Self::backpropagate(tree, new_node, 1.0 - f64::from(value));
             }
-            SelectionResult::Terminal {
-                node_index: best_node,
-                board_state,
-            } => {
+            SelectionResult::Terminal { node_index: best_node, board_state } => {
                 // if the node is terminal, we don't need to expand it.
                 // we just need to backpropagate the result.
                 let value = match board_state.outcome() {
@@ -281,12 +230,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
 
     /// Descends the tree, selecting the best node at each step.
     /// Returns the index of a node, and the index of the edge to be expanded.
-    fn select(
-        root: &G,
-        tree: &mut [Node<G>],
-        params: &Params,
-        mut node_idx: usize,
-    ) -> SelectionResult<G> {
+    fn select(root: &G, tree: &mut [Node<G>], params: &Params, mut node_idx: usize) -> SelectionResult<G> {
         trace!("Engine::select(root, tree, params, node_idx = {node_idx})");
 
         let mut pos = *root;
@@ -300,24 +244,14 @@ impl<'a, G: GameImpl> Engine<'a, G> {
 
             // if the node is terminal, return it
             if tree[node_idx].is_terminal() {
-                trace!(
-                    "Engine::select: terminal node reached: index {node_idx}, position {}",
-                    pos.fen()
-                );
-                return SelectionResult::Terminal {
-                    node_index: node_idx,
-                    board_state: pos,
-                };
+                trace!("Engine::select: terminal node reached: index {node_idx}, position {}", pos.fen());
+                return SelectionResult::Terminal { node_index: node_idx, board_state: pos };
             }
 
             let (edge_idx, child_idx) = Self::uct_best(tree, params, node_idx);
             // if the node has no children, return it, because we can't descend any further.
             if child_idx.is_null() {
-                return SelectionResult::NonTerminal {
-                    node_index: node_idx,
-                    edge_index: edge_idx,
-                    board_state: pos,
-                };
+                return SelectionResult::NonTerminal { node_index: node_idx, edge_index: edge_idx, board_state: pos };
             }
 
             // it's *not* unexpanded, so we can descend
@@ -340,11 +274,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                 break;
             }
             let (edge_idx, child_idx) = Self::rollouts_best(tree, node_idx.index());
-            let Some(edge) = tree[node_idx.index()]
-                .edges()
-                .expect("node has no edges")
-                .get(edge_idx)
-            else {
+            let Some(edge) = tree[node_idx.index()].edges().expect("node has no edges").get(edge_idx) else {
                 break;
             };
             let best_move = edge.get_move(false);
@@ -400,9 +330,11 @@ impl<'a, G: GameImpl> Engine<'a, G> {
                     best_child = handle;
                 }
             } else {
-                let value =
-                    exploration_factor.mul_add(edges[idx].probability(), first_play_urgency);
-                trace!(" [dangling] edge = {idx}, value = {value}, fpu = {first_play_urgency}, p(edge) = {}", edges[idx].probability());
+                let value = exploration_factor.mul_add(edges[idx].probability(), first_play_urgency);
+                trace!(
+                    " [dangling] edge = {idx}, value = {value}, fpu = {first_play_urgency}, p(edge) = {}",
+                    edges[idx].probability()
+                );
                 if value > best_value {
                     best_idx = idx;
                     best_value = value;
@@ -466,12 +398,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
     }
 
     /// Expands an edge of a given node, returning a handle to the new node.
-    fn expand(
-        tree: &mut Vec<Node<G>>,
-        _params: &Params,
-        node_idx: usize,
-        edge_index: usize,
-    ) -> Handle {
+    fn expand(tree: &mut Vec<Node<G>>, _params: &Params, node_idx: usize, edge_index: usize) -> Handle {
         trace!("Engine::expand(tree, params, node_idx = {node_idx}, edge_idx = {edge_index})");
 
         let last_child_of_expanding_node = {
@@ -504,10 +431,7 @@ impl<'a, G: GameImpl> Engine<'a, G> {
             tree[last_child_of_expanding_node.index()].sibling_mut()
         };
 
-        assert!(
-            memory_to_write_to.is_null(),
-            "attempted to overwrite a non-null handle."
-        );
+        assert!(memory_to_write_to.is_null(), "attempted to overwrite a non-null handle.");
         *memory_to_write_to = handle;
 
         handle

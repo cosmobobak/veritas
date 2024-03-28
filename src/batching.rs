@@ -27,11 +27,7 @@ pub struct Executor<G: GameImpl> {
 }
 
 impl<G: GameImpl> Executor<G> {
-    pub fn new(
-        cuda_device: Option<CudaDevice>,
-        num_pipes: usize,
-        graph: &Graph,
-    ) -> (Self, Vec<ExecutorHandle<G>>) {
+    pub fn new(cuda_device: Option<CudaDevice>, num_pipes: usize, graph: &Graph) -> (Self, Vec<ExecutorHandle<G>>) {
         let batch_size = EXECUTOR_BATCH_SIZE.min(num_pipes);
         let internal = cuda_device.map(|cd| CudaExecutor::new(cd, graph, batch_size));
         let mut eval_pipes = Vec::new();
@@ -39,24 +35,10 @@ impl<G: GameImpl> Executor<G> {
         for _ in 0..num_pipes {
             let (board_sender, board_receiver) = crossbeam::channel::bounded(1);
             let (eval_sender, eval_receiver) = crossbeam::channel::bounded(1);
-            eval_pipes.push(EvalPipe {
-                sender: eval_sender,
-                receiver: board_receiver,
-            });
-            handles.push(ExecutorHandle {
-                sender: board_sender,
-                receiver: eval_receiver,
-            });
+            eval_pipes.push(EvalPipe { sender: eval_sender, receiver: board_receiver });
+            handles.push(ExecutorHandle { sender: board_sender, receiver: eval_receiver });
         }
-        (
-            Self {
-                internal,
-                eval_pipes,
-                in_waiting: Vec::new(),
-                batch_size,
-            },
-            handles,
-        )
+        (Self { internal, eval_pipes, in_waiting: Vec::new(), batch_size }, handles)
     }
 
     /// Fill the `in_waiting` queue with boards from the pipes.
@@ -97,9 +79,7 @@ impl<G: GameImpl> Executor<G> {
         // evaluate them, and send the results to the corresponding pipes
         let mut indices = Vec::new();
         let mut input = Tensor::zeros(G::tensor_dims(self.batch_size));
-        for (batch_index, (pipe_index, board)) in
-            self.in_waiting.drain(..self.batch_size).enumerate()
-        {
+        for (batch_index, (pipe_index, board)) in self.in_waiting.drain(..self.batch_size).enumerate() {
             // fill the slice with the feature map
             board.fill_feature_map(|index| {
                 input[[batch_index, index]] = 1.0;
@@ -114,10 +94,7 @@ impl<G: GameImpl> Executor<G> {
         for (batch_index, pipe_index) in indices.into_iter().enumerate() {
             let policy_vec = policy.slice(s![batch_index, ..]).to_vec();
             let value = value[[batch_index, 0]];
-            self.eval_pipes[pipe_index]
-                .sender
-                .send((policy_vec, value))
-                .unwrap();
+            self.eval_pipes[pipe_index].sender.send((policy_vec, value)).unwrap();
         }
     }
 }

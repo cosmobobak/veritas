@@ -39,9 +39,7 @@ fn stdin_reader_worker(sender: mpsc::Sender<String>) {
     while let Ok(bytes) = std::io::stdin().read_line(&mut linebuf) {
         if bytes == 0 {
             // EOF
-            sender
-                .send("quit".into())
-                .expect("couldn't send quit command to main thread");
+            sender.send("quit".into()).expect("couldn't send quit command to main thread");
             QUIT.store(true, Ordering::SeqCst);
             break;
         }
@@ -67,11 +65,7 @@ fn stdin_reader_worker(sender: mpsc::Sender<String>) {
 pub fn main_loop<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<()> {
     let stdin = Mutex::new(stdin_reader());
 
-    let version_extension = if cfg!(feature = "final-release") {
-        ""
-    } else {
-        "-dev"
-    };
+    let version_extension = if cfg!(feature = "final-release") { "" } else { "-dev" };
     println!("{NAME} {VERSION}{version_extension} by Cosmo");
 
     // Load an onnx file into a Graph.
@@ -86,12 +80,8 @@ pub fn main_loop<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<()> {
     let default_params = Params::default().with_stdin_rx(&stdin).with_stdout(true);
     let default_limits = Limits::default();
     let starting_position = G::default();
-    let mut engine = Engine::new(
-        default_params,
-        default_limits,
-        &starting_position,
-        executor_handles.into_iter().next().unwrap(),
-    );
+    let mut engine =
+        Engine::new(default_params, default_limits, &starting_position, executor_handles.into_iter().next().unwrap());
 
     loop {
         std::io::Write::flush(&mut std::io::stdout()).expect("couldn't flush stdout");
@@ -118,18 +108,14 @@ pub fn main_loop<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<()> {
             "show" => {
                 println!("info string position fen {}", engine.root().fen());
                 let board_string = engine.root().to_string();
-                let prefixed = board_string
-                    .lines()
-                    .map(|line| format!("info string {line}"))
-                    .collect::<Vec<_>>()
-                    .join("\n");
+                let prefixed =
+                    board_string.lines().map(|line| format!("info string {line}")).collect::<Vec<_>>().join("\n");
                 println!("{prefixed}");
             }
             "stop" => {
                 // engine.stop();
             }
-            query if query.starts_with("query ") => match query.trim_start_matches("query ").trim()
-            {
+            query if query.starts_with("query ") => match query.trim_start_matches("query ").trim() {
                 "gameover" => {
                     println!("response {}", engine.root().outcome().is_some());
                 }
@@ -152,18 +138,14 @@ pub fn main_loop<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<()> {
             go if go.starts_with("go") => {
                 let limits_text = go.trim_start_matches("go").trim();
                 let limits_text = G::player_substitute(limits_text);
-                let limits: Limits = if let Ok(limits) = limits_text.parse()
-                {
+                let limits: Limits = if let Ok(limits) = limits_text.parse() {
                     limits
                 } else {
                     println!("info string invalid go command");
                     continue;
                 };
                 engine.set_limits(limits);
-                let SearchResults {
-                    best_move,
-                    root_dist,
-                } = engine.go()?;
+                let SearchResults { best_move, root_dist } = engine.go()?;
                 info!("best move from search: {}", best_move);
                 info!("root rollout distribution: {:?}", root_dist);
                 println!("bestmove {best_move}");
@@ -179,9 +161,7 @@ pub fn main_loop<G: GameImpl>(net_path: Option<&str>) -> anyhow::Result<()> {
                 }
             }
             set_option if set_option.starts_with("setoption ") => {
-                let mut words = set_option
-                    .trim_start_matches("setoption ")
-                    .split_ascii_whitespace();
+                let mut words = set_option.trim_start_matches("setoption ").split_ascii_whitespace();
                 words.next(); // "name"
                 let Ok(name) = words.next().ok_or(()) else {
                     println!("info string invalid setoption command");
@@ -239,14 +219,10 @@ fn make_move_on_engine<G: GameImpl>(play: &str, engine: &mut Engine<'_, G>) -> C
 }
 
 fn parse_position<G: GameImpl>(set_position: &str, engine: &mut Engine<'_, G>) -> ControlFlow<()> {
-    let (board_part, moves_part) = set_position
-        .trim_start_matches("position ")
-        .trim()
-        .split_once("moves")
-        .map_or_else(
-            || (set_position.trim_start_matches("position ").trim(), ""),
-            |(board_part, moves_part)| (board_part.trim(), moves_part.trim()),
-        );
+    let (board_part, moves_part) = set_position.trim_start_matches("position ").trim().split_once("moves").map_or_else(
+        || (set_position.trim_start_matches("position ").trim(), ""),
+        |(board_part, moves_part)| (board_part.trim(), moves_part.trim()),
+    );
     let mut board = match board_part {
         "startpos" => G::default(),
         fen if fen.starts_with("fen ") => {

@@ -11,7 +11,8 @@ use crate::{
     batching::{self, ExecutorHandle},
     engine::{Engine, SearchResults},
     game::{GameImpl, Player},
-    params::Params, timemgmt::Limits,
+    params::Params,
+    timemgmt::Limits,
 };
 
 struct GameRecord<G: GameImpl> {
@@ -27,7 +28,10 @@ const PLAYOUT_CAP_RANDOMISATION_FREQ: f64 = 0.25;
 const HI_PLAYOUT_CAP: u64 = 800;
 const LO_PLAYOUT_CAP: u64 = 200;
 
-fn game_record_writer_thread<G: GameImpl>(save_folder: &str, recv: std::sync::mpsc::Receiver<GameRecord<G>>) -> anyhow::Result<()> {
+fn game_record_writer_thread<G: GameImpl>(
+    save_folder: &str,
+    recv: std::sync::mpsc::Receiver<GameRecord<G>>,
+) -> anyhow::Result<()> {
     let mut positions = BufWriter::new(File::create(format!("{save_folder}/positions.csv"))?);
     let mut policy_tgt = BufWriter::new(File::create(format!("{save_folder}/policy-target.csv"))?);
     let mut value_tgt = BufWriter::new(File::create(format!("{save_folder}/value-target.csv"))?);
@@ -117,8 +121,7 @@ fn self_play_worker_thread<G: GameImpl>(
         print!(
             "\rGenerated {} games at {:.2} pos/sec",
             GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed),
-            POSITIONS_GENERATED.load(std::sync::atomic::Ordering::Relaxed) as f64
-                / start_time.elapsed().as_secs_f64()
+            POSITIONS_GENERATED.load(std::sync::atomic::Ordering::Relaxed) as f64 / start_time.elapsed().as_secs_f64()
         );
         std::io::stdout().flush()?;
         drop(stdout_lock);
@@ -135,25 +138,14 @@ fn self_play_worker_thread<G: GameImpl>(
             };
             board.make_move(mv);
         }
-        let mut game = GameRecord {
-            root: board,
-            move_list: Vec::new(),
-            outcome: None,
-        };
+        let mut game = GameRecord { root: board, move_list: Vec::new(), outcome: None };
 
         while board.outcome().is_none() {
             engine.set_position(&board);
             let high_quality_move = rng.gen_bool(PLAYOUT_CAP_RANDOMISATION_FREQ);
-            let playout_cap = if high_quality_move {
-                HI_PLAYOUT_CAP
-            } else {
-                LO_PLAYOUT_CAP
-            };
+            let playout_cap = if high_quality_move { HI_PLAYOUT_CAP } else { LO_PLAYOUT_CAP };
             engine.set_limits(Limits::nodes(playout_cap));
-            let SearchResults {
-                best_move,
-                root_dist,
-            } = engine.go()?;
+            let SearchResults { best_move, root_dist } = engine.go()?;
             assert_eq!(root_dist.len(), G::POLICY_DIM);
             board.make_move(best_move);
             game.move_list.push((best_move, root_dist, high_quality_move));
@@ -177,7 +169,11 @@ fn self_play_worker_thread<G: GameImpl>(
     Ok(())
 }
 
-pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_millis: u128, model_path: Option<&str>) -> anyhow::Result<()> {
+pub fn run_data_generation<G: GameImpl>(
+    num_threads: usize,
+    time_allocated_millis: u128,
+    model_path: Option<&str>,
+) -> anyhow::Result<()> {
     let date = chrono::Local::now().format("%Y-%m-%d-%H-%M-%S");
     let save_folder = format!("data/{date}");
     std::fs::create_dir_all(&save_folder).unwrap();
@@ -197,15 +193,19 @@ pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_milli
     let (send, recv) = std::sync::mpsc::channel();
 
     let save_folder_p = save_folder.clone();
-    threads.push(std::thread::Builder::new().name("game_record_writer".to_string()).spawn(move || {
-        game_record_writer_thread(&save_folder_p, recv)
-    })?);
+    threads.push(
+        std::thread::Builder::new()
+            .name("game_record_writer".to_string())
+            .spawn(move || game_record_writer_thread(&save_folder_p, recv))?,
+    );
 
     for (thread_id, executor) in executor_handles.into_iter().enumerate() {
         let send = send.clone();
-        threads.push(std::thread::Builder::new().name(format!("self_play_worker_{thread_id}")).spawn(move || {
-            self_play_worker_thread(time_allocated_millis, thread_id, executor, send)
-        })?);
+        threads.push(
+            std::thread::Builder::new()
+                .name(format!("self_play_worker_{thread_id}"))
+                .spawn(move || self_play_worker_thread(time_allocated_millis, thread_id, executor, send))?,
+        );
     }
 
     std::mem::drop(send);
@@ -218,10 +218,7 @@ pub fn run_data_generation<G: GameImpl>(num_threads: usize, time_allocated_milli
     }
 
     println!("Data generation complete! (saved to {save_folder})");
-    println!(
-        "Generated {} games.",
-        GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed)
-    );
+    println!("Generated {} games.", GAMES_GENERATED.load(std::sync::atomic::Ordering::Relaxed));
 
     Ok(())
 }

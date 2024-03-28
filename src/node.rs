@@ -92,9 +92,7 @@ pub struct Node<G: GameImpl> {
 impl<G: GameImpl> Node<G> {
     /// Creates a new node.
     pub fn new(parent: Handle, edge_index: usize) -> Self {
-        let index = edge_index
-            .try_into()
-            .unwrap_or_else(|_| panic!("edge index {edge_index} too large"));
+        let index = edge_index.try_into().unwrap_or_else(|_| panic!("edge index {edge_index} too large"));
         Self {
             wl: 0.0,
             edges: None,
@@ -129,8 +127,7 @@ impl<G: GameImpl> Node<G> {
                 // 1. look up the node in the tree using the index
                 // 2. get the index of the node's inbound edge in our edge list
                 // 3. look up that index in our edge list.
-                best_move =
-                    Some(self.edges().unwrap()[tree[edge.index()].edge_index()].get_move(false));
+                best_move = Some(self.edges().unwrap()[tree[edge.index()].edge_index()].get_move(false));
                 best_visits = i64::from(visits);
             }
             edge = tree[edge.index()].sibling;
@@ -143,9 +140,8 @@ impl<G: GameImpl> Node<G> {
         let mut dist = vec![0; G::POLICY_DIM];
         let mut edge = self.child;
         while !edge.is_null() {
-            let move_index = self.edges.as_ref().unwrap()[tree[edge.index()].edge_index()]
-                .get_move(false)
-                .policy_index();
+            let move_index =
+                self.edges.as_ref().unwrap()[tree[edge.index()].edge_index()].get_move(false).policy_index();
             let visits = u64::from(tree[edge.index()].visits);
             dist[move_index] = visits;
             edge = tree[edge.index()].sibling;
@@ -218,10 +214,7 @@ impl<G: GameImpl> Node<G> {
             if logit > max_logit {
                 max_logit = logit;
             }
-            moves.push(Edge {
-                pov_move: m,
-                probability: logit,
-            });
+            moves.push(Edge { pov_move: m, probability: logit });
             false
         });
         // normalize the probabilities

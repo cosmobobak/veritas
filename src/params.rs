@@ -11,21 +11,13 @@ pub struct Params<'a> {
 
 impl Default for Params<'_> {
     fn default() -> Self {
-        Self {
-            c_puct: 2.50,
-            root_policy_softmax_temp: 1.3,
-            stdin_rx: None,
-            do_stdout: false,
-        }
+        Self { c_puct: 2.50, root_policy_softmax_temp: 1.3, stdin_rx: None, do_stdout: false }
     }
 }
 
 impl<'a> Params<'a> {
     pub const fn with_stdin_rx(self, stdin_rx: &'a Mutex<mpsc::Receiver<String>>) -> Self {
-        Self {
-            stdin_rx: Some(stdin_rx),
-            ..self
-        }
+        Self { stdin_rx: Some(stdin_rx), ..self }
     }
 
     pub const fn with_stdout(self, do_stdout: bool) -> Self {
