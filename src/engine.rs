@@ -123,12 +123,16 @@ impl<'a, G: GameImpl> Engine<'a, G> {
         // let mut log = std::io::BufWriter::new(std::fs::File::create("log.txt").unwrap());
 
         let mut stopped_by_stdin = false;
+        let mut last_best_move_index = Self::rollouts_best(tree, 0).0;
         while !limits.is_out_of_time(nodes_searched, elapsed, is_p1) && !stopped_by_stdin {
             // perform one iteration of selection, expansion, simulation, and backpropagation
             Self::do_sesb(executor, root, tree, params)?;
 
             // update elapsed time and print stats
-            if params.do_stdout {
+            let curr_bm = Self::rollouts_best(tree, 0).0;
+            let bm_changed = curr_bm != last_best_move_index;
+            last_best_move_index = curr_bm;
+            if params.do_stdout && (nodes_searched % 100 == 0 || bm_changed) {
                 print!(
                     "info nodes {} time {} nps {:.0} score q {:.1} pv",
                     nodes_searched,
