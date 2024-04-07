@@ -1,13 +1,13 @@
 {
-    "games": 200,
-    "concurrency": 1,
+    "games": 800,
+    "concurrency": 16,
     "ratinginterval": 1,
     "verbose": false,
     "debug": false,
     "recover": false,
     "tournament": "roundrobin",
     "openings": {
-        "path": "./d2-9x9-openings.txt",
+        "path": "./books/gomoku15x15-d2-openings.txt",
         "repeat": true,
         "shuffle": false
     },
@@ -15,10 +15,10 @@
         "askturn": true
     },
     "timecontrol": {
-        "type": "clock",
-        "time": 8000,
-        "increment": 800,
-        "nodes": 500
+        "type": "nodes",
+        "time": 1000,
+        "increment": 10,
+        "nodes": 1
     },
     "sprt": {
         "enabled": false,
@@ -37,12 +37,12 @@
     },
     "engines": [
         {
-            "name": "MCTS",
-            "path": "./pure-mcts uci gomoku"
+            "name": "p1",
+            "path": "./target/release/veritas uci gomoku15 nets/gomoku15-bootstrap9-t2.onnx"
         },
         {
-            "name": "PUCT",
-            "path": "./puct uci gomoku"
+            "name": "p2",
+            "path": "./target/release/veritas uci gomoku15 nets/gomoku15-bootstrap4-t1.onnx"
         }
     ]
 }

@@ -1,0 +1,56 @@
+{
+    "games": 250,
+    "concurrency": 10,
+    "ratinginterval": 10,
+    "verbose": false,
+    "debug": false,
+    "recover": false,
+    "colour1": "Black",
+    "colour2": "White",
+    "tournament": "gauntlet",
+    "print_early": false,
+    "output": {
+        "early": true,
+        "interval": 100
+    },
+    "adjudicate": {
+        "gamelength": 300,
+        "material": 30,
+        "easyfill": true,
+        "timeout_buffer": 25
+    },
+    "openings": {
+        "path": "books/ply3_fair.txt",
+        "repeat": true,
+        "shuffle": false
+    },
+    "timecontrol": {
+        "nodes": 1
+    },
+    "sprt": {
+        "enabled": false,
+        "autostop": true,
+        "elo0": 0.0,
+        "elo1": 5.0,
+        "confidence": 0.95
+    },
+    "pgn": {
+        "enabled": true,
+        "verbose": true,
+        "override": false,
+        "path": "test.pgn",
+        "event": "?"
+    },
+    "engines": [
+        {
+            "name": "test",
+            "protocol": "UAI",
+            "path": "/afs/inf.ed.ac.uk/user/s20/s2079150/veritas/target/release/veritas",
+            "arguments": "uci ataxx /afs/inf.ed.ac.uk/user/s20/s2079150/veritas/nets/ataxx-bootstrap-t4.onnx"
+        },
+        {
+            "name": "least-captures",
+            "builtin": "leastcaptures"
+        }
+    ]
+}

@@ -1,0 +1,12 @@
+ataxx-bootstrap2-t2.onnx,-561.36,85.14
+ataxx-bootstrap3-t4.onnx,98.44,31.75
+ataxx-bootstrap4-t1.onnx,-54.65,30.87
+ataxx-bootstrap5-t4.onnx,-48.96,30.80
+ataxx-bootstrap6-t2.onnx,324.17,45.29
+ataxx-bootstrap-t4.onnx,-511.50,73.30
+ataxx-bootstrap8-t2.onnx,629.43,106.39
+ataxx-bootstrap7-t2.onnx,543.25,80.54
+ataxx-bootstrap9-t1.onnx,694.74,135.69
+ataxx-bootstrap10-t4.onnx,798.25,233.74
+ataxx-bootstrap11-t1.onnx,887.70,inf
+ataxx-bootstrap12-t1.onnx,inf,-nan
